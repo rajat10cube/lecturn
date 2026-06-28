@@ -57,6 +57,7 @@ export default function CoursePage() {
   const [currentId, setCurrentId] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const lastPut = useRef<{ id: number; t: number }>({ id: -1, t: 0 });
+  const activeRef = useRef<HTMLButtonElement>(null);
   const toggleSection = (id: number) =>
     setCollapsed((prev) => {
       const n = new Set(prev);
@@ -80,6 +81,24 @@ export default function CoursePage() {
 
   const current = flat.find((l) => l.id === currentId) ?? null;
   const idx = current ? flat.findIndex((l) => l.id === current.id) : -1;
+
+  // keep the active lecture visible: expand its section, then scroll it into view
+  useEffect(() => {
+    if (currentId == null) return;
+    const sec = data?.sections.find((s) => s.lectures.some((l) => l.id === currentId));
+    if (sec) {
+      setCollapsed((prev) => {
+        if (!prev.has(sec.id)) return prev;
+        const n = new Set(prev);
+        n.delete(sec.id);
+        return n;
+      });
+    }
+    const raf = requestAnimationFrame(() =>
+      activeRef.current?.scrollIntoView({ block: "nearest" }),
+    );
+    return () => cancelAnimationFrame(raf);
+  }, [currentId, data]);
 
   const report = (lecId: number, pos: number, dur: number, ended: boolean) => {
     const now = Date.now();
@@ -160,6 +179,7 @@ export default function CoursePage() {
                     return (
                       <li key={l.id}>
                         <button
+                          ref={active ? activeRef : undefined}
                           onClick={() => setCurrentId(l.id)}
                           className={cn(
                             "block w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors",
