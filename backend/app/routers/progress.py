@@ -49,12 +49,14 @@ def put_progress(
         p.duration_sec = body.duration_sec
 
     if body.completed is not None:
-        computed = body.completed
-    elif p.duration_sec and p.duration_sec > 0:
-        computed = (body.position_sec / p.duration_sec) >= _COMPLETE_RATIO
+        p.completed = body.completed  # explicit manual override (mark complete/incomplete)
     else:
-        computed = False
-    p.completed = bool(p.completed or computed)  # completion is sticky
+        auto = bool(
+            p.duration_sec
+            and p.duration_sec > 0
+            and (body.position_sec / p.duration_sec) >= _COMPLETE_RATIO
+        )
+        p.completed = bool(p.completed or auto)  # auto-completion is sticky
 
     db.commit()
     return {"lectureId": lecture_id, "positionSec": p.position_sec, "completed": p.completed}

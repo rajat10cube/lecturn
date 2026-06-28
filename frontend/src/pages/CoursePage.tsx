@@ -134,6 +134,19 @@ export default function CoursePage() {
     if (idx >= 0 && idx + 1 < flat.length) setCurrentId(flat[idx + 1].id);
   };
 
+  const toggleComplete = async () => {
+    if (!current) return;
+    const p = progress[current.id];
+    const next = !p?.completed;
+    setProgress((prev) => ({ ...prev, [current.id]: { positionSec: p?.positionSec ?? 0, completed: next } }));
+    await putProgress(current.id, {
+      position_sec: p?.positionSec ?? 0,
+      duration_sec: current.durationSec ?? null,
+      completed: next,
+    }).catch(() => {});
+    qc.invalidateQueries({ queryKey: ["courses"] });
+  };
+
   if (isLoading || isError || !data) {
     return (
       <div className="flex h-screen flex-col overflow-hidden">
@@ -269,9 +282,17 @@ export default function CoursePage() {
                       Lecture {idx + 1} of {flat.length}
                     </p>
                   </div>
-                  <Button variant="secondary" onClick={playNext} disabled={idx < 0 || idx + 1 >= flat.length}>
-                    Next <ChevronRight />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      variant={progress[current.id]?.completed ? "default" : "outline"}
+                      onClick={() => void toggleComplete()}
+                    >
+                      <Check /> {progress[current.id]?.completed ? "Completed" : "Mark complete"}
+                    </Button>
+                    <Button variant="secondary" onClick={playNext} disabled={idx < 0 || idx + 1 >= flat.length}>
+                      Next <ChevronRight />
+                    </Button>
+                  </div>
                 </div>
               </>
             ) : (
