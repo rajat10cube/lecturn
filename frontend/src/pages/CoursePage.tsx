@@ -210,6 +210,7 @@ export default function CoursePage() {
                   startPosition={startPosition}
                   onProgress={(pos, dur, ended) => report(current.id, pos, dur, ended)}
                   onEnded={playNext}
+                  onNext={playNext}
                 />
                 <div className="mt-4 flex items-start justify-between gap-4">
                   <div>

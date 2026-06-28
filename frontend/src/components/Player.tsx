@@ -9,15 +9,60 @@ export default function Player({
   startPosition = 0,
   onProgress,
   onEnded,
+  onNext,
 }: {
   lecture: LectureItem;
   startPosition?: number;
   onProgress?: (positionSec: number, durationSec: number, ended: boolean) => void;
   onEnded?: () => void;
+  onNext?: () => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const lastTick = useRef(0);
   const [err, setErr] = useState(false);
+
+  // keyboard shortcuts (ignored while typing in a field)
+  useEffect(() => {
+    if (lecture.playback === "document") return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const v = ref.current;
+      if (!v) return;
+      switch (e.key) {
+        case " ":
+          e.preventDefault();
+          if (v.paused) void v.play();
+          else v.pause();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          v.currentTime = Math.max(0, v.currentTime - 5);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          v.currentTime = Math.min(v.duration || Infinity, v.currentTime + 5);
+          break;
+        case "n":
+        case "N":
+          onNext?.();
+          break;
+        case "f":
+        case "F":
+          if (document.fullscreenElement) void document.exitFullscreen();
+          else void v.requestFullscreen?.();
+          break;
+        case "m":
+        case "M":
+          v.muted = !v.muted;
+          break;
+        default:
+          break;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lecture.playback, onNext]);
 
   const mediaUrl =
     lecture.playback === "remux" ? `/api/lectures/${lecture.id}/remux` : lecture.stream;
