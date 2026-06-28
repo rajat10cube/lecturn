@@ -263,3 +263,25 @@ export async function putProgress(lectureId: number, body: ProgressIn): Promise<
     body: JSON.stringify(body),
   });
 }
+
+export interface NoteItem {
+  id: number;
+  positionSec: number;
+  text: string;
+}
+
+export const getNotes = (lectureId: number) =>
+  getJSON<NoteItem[]>(`/notes?lecture=${lectureId}`);
+
+export async function createNote(lectureId: number, positionSec: number, text: string): Promise<void> {
+  await fetch(`${BASE}/notes`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lecture_id: lectureId, position_sec: positionSec, text }),
+  });
+}
+
+export async function deleteNote(id: number): Promise<void> {
+  await fetch(`${BASE}/notes/${id}`, { method: "DELETE", credentials: "include" });
+}

@@ -22,6 +22,7 @@ from .routers import (
     lectures,
     libraries,
     media,
+    notes,
     progress,
     search,
     users,
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(libraries.router, prefix="/api")
     app.include_router(media.router, prefix="/api")
     app.include_router(progress.router, prefix="/api")
+    app.include_router(notes.router, prefix="/api")
     app.include_router(search.router, prefix="/api")
     app.include_router(users.router, prefix="/api")
     app.include_router(admin.router, prefix="/api")

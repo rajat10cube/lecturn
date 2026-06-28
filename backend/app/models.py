@@ -135,6 +135,20 @@ class Attachment(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class Note(Base):
+    __tablename__ = "note"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), index=True)
+    lecture_id: Mapped[int] = mapped_column(ForeignKey("lecture.id", ondelete="CASCADE"), index=True)
+    position_sec: Mapped[float] = mapped_column(Float, default=0.0)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Progress(Base):
     __tablename__ = "progress"
     __table_args__ = (

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import AppHeader from "@/components/AppHeader";
-import Player from "@/components/Player";
+import Notes from "@/components/Notes";
+import Player, { type PlayerHandle } from "@/components/Player";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,7 @@ export default function CoursePage() {
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const lastPut = useRef<{ id: number; t: number }>({ id: -1, t: 0 });
   const activeRef = useRef<HTMLButtonElement>(null);
+  const playerRef = useRef<PlayerHandle>(null);
   const didInit = useRef(false);
 
   // reset per-course state when navigating between courses
@@ -269,6 +271,7 @@ export default function CoursePage() {
               <>
                 <Player
                   key={current.id}
+                  ref={playerRef}
                   lecture={current}
                   startPosition={startPosition}
                   onProgress={(pos, dur, ended) => report(current.id, pos, dur, ended)}
@@ -294,6 +297,11 @@ export default function CoursePage() {
                     </Button>
                   </div>
                 </div>
+                <Notes
+                  lectureId={current.id}
+                  getTime={() => playerRef.current?.getCurrentTime() ?? 0}
+                  onSeek={(t) => playerRef.current?.seek(t)}
+                />
               </>
             ) : (
               <p className="text-muted-foreground">Select a lecture to begin.</p>

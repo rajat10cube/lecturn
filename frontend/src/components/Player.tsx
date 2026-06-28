@@ -1,5 +1,5 @@
 import mpegts from "mpegts.js";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,21 +8,39 @@ import type { LectureItem } from "@/api";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
-export default function Player({
-  lecture,
-  startPosition = 0,
-  onProgress,
-  onEnded,
-  onNext,
-}: {
+export interface PlayerHandle {
+  seek: (t: number) => void;
+  getCurrentTime: () => number;
+}
+
+interface PlayerProps {
   lecture: LectureItem;
   startPosition?: number;
   onProgress?: (positionSec: number, durationSec: number, ended: boolean) => void;
   onEnded?: () => void;
   onNext?: () => void;
-}) {
+}
+
+const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
+  { lecture, startPosition = 0, onProgress, onEnded, onNext },
+  handleRef,
+) {
   const ref = useRef<HTMLVideoElement>(null);
   const lastTick = useRef(0);
+
+  useImperativeHandle(handleRef, () => ({
+    seek: (t: number) => {
+      const v = ref.current;
+      if (!v) return;
+      try {
+        v.currentTime = t;
+        void v.play();
+      } catch {
+        /* not seekable */
+      }
+    },
+    getCurrentTime: () => ref.current?.currentTime ?? 0,
+  }));
   const [err, setErr] = useState(false);
   const [rate, setRate] = useState(() => readPrefs().rate);
   const [autoplay, setAutoplay] = useState(() => readPrefs().autoplayNext);
@@ -213,4 +231,6 @@ export default function Player({
       </div>
     </div>
   );
-}
+});
+
+export default Player;
