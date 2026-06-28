@@ -10,16 +10,18 @@ runnable on *your* host today.
 > GitHub. These scripts give you the same one-command experience without waiting
 > on that. (Happy to prep a submission later — see "Publishing" below.)
 
-## Quick start (on the Proxmox host)
+## Quick start (on the Proxmox host, as root)
 
+**One-liner** — fetches everything from GitHub, creates the LXC, installs Lecturn:
 ```bash
-# 1) get the repo onto the host (git clone, or scp the folder)
-git clone https://github.com/rajat10cube/lecturn   # or copy it over
-cd lecturn
-
-# 2) create the container + install Lecturn, bind-mounting your courses
 MEDIA_HOST=/mnt/pool/courses CTID=120 LECTURN_AUTH_PASS='supersecret' \
-  bash deploy/lxc/create-lxc.sh
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/deploy/lxc/create-lxc.sh)"
+```
+
+Or from a local clone (copies your local source instead of cloning the repo):
+```bash
+git clone https://github.com/rajat10cube/lecturn && cd lecturn
+MEDIA_HOST=/mnt/pool/courses CTID=120 LECTURN_REPO= bash deploy/lxc/create-lxc.sh
 ```
 
 That creates a Debian 12 LXC, mounts your courses read-only at
