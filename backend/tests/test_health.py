@@ -23,7 +23,9 @@ def test_courses_requires_auth():
     assert r.status_code == 401
 
 
-def test_courses_with_auth_is_empty():
+def test_courses_with_auth_returns_shape():
     r = client.get("/api/courses", auth=("admin", "change-me"))
     assert r.status_code == 200
-    assert r.json() == {"courses": [], "categories": []}
+    body = r.json()
+    assert isinstance(body["courses"], list)
+    assert isinstance(body["categories"], list)

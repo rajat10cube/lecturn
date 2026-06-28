@@ -59,7 +59,14 @@ def init_db() -> None:
             conn.exec_driver_sql("DROP TABLE progress")
 
     Base.metadata.create_all(engine)
+
     with engine.begin() as conn:
+        # add user.all_libraries to pre-existing DBs
+        uinfo = conn.exec_driver_sql('PRAGMA table_info("user")').fetchall()
+        if uinfo and not any(row[1] == "all_libraries" for row in uinfo):
+            conn.exec_driver_sql(
+                'ALTER TABLE "user" ADD COLUMN all_libraries BOOLEAN NOT NULL DEFAULT 1'
+            )
         conn.exec_driver_sql(FTS_DDL)
 
     from .auth import ensure_admin  # seed the first admin from configured creds

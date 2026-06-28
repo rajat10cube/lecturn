@@ -21,8 +21,9 @@ server.
   subtitles.
 - **Accounts** — **first-run admin signup**, then a cookie-session login with
   **multiple users**: admins manage users + libraries; each user gets their **own
-  progress**. Hashed passwords (PBKDF2), self-serve password change. Basic auth
-  also works for API/CLI.
+  progress**; **per-library access** (restrict a user to specific libraries —
+  admins always see all). Hashed passwords (PBKDF2), self-serve password change.
+  Basic auth also works for API/CLI.
 - **Libraries** — add/remove course folders from the web UI (like Jellyfin),
   with a built-in folder browser; auto-scans on add.
 - **Library UI** — searchable grid (SQLite FTS5) across courses *and* lessons
@@ -97,7 +98,9 @@ On first launch Lecturn shows a **one-time signup** to create your **master admi
 account (username + password) — nothing is preconfigured. After that it's a normal
 **login page** (cookie session). Admins add more users in **Settings → Users**;
 each user has their own watch progress. Passwords are hashed (PBKDF2) and users
-change their own in **Settings → Account**.
+change their own in **Settings → Account**. By default every user can see all
+libraries; admins can restrict a user to specific libraries via **Settings →
+Users → Access** (admins always see everything).
 
 For automation you can pre-create the admin by setting `LECTURN_AUTH_USER` /
 `LECTURN_AUTH_PASS` (skips signup). API/CLI clients may use HTTP Basic (`curl -u`).

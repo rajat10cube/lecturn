@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..access import can_access_course
 from ..auth import require_user
 from ..db import get_db
 from ..models import Course, Lecture, Progress, User
@@ -29,7 +30,11 @@ def put_progress(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    if db.get(Lecture, lecture_id) is None:
+    lec = db.get(Lecture, lecture_id)
+    if lec is None:
+        raise HTTPException(404, "Lecture not found")
+    course = db.get(Course, lec.course_id)
+    if course is None or not can_access_course(db, user, course):
         raise HTTPException(404, "Lecture not found")
 
     p = db.scalar(
@@ -60,7 +65,7 @@ def get_progress(
     course: str, user: User = Depends(require_user), db: Session = Depends(get_db)
 ) -> dict:
     c = db.scalar(select(Course).where(Course.slug == course))
-    if c is None:
+    if c is None or not can_access_course(db, user, c):
         raise HTTPException(404, "Course not found")
     rows = db.scalars(
         select(Progress)

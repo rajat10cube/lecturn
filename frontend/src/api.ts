@@ -89,6 +89,8 @@ export interface UserRow {
   id: number;
   username: string;
   isAdmin: boolean;
+  allLibraries: boolean;
+  libraryIds: number[];
 }
 
 export async function getMe(): Promise<Me | null> {
@@ -158,6 +160,23 @@ export const resetUserPassword = (id: number, password: string) =>
   postJSON(`/users/${id}/password`, { password });
 export const changeMyPassword = (current_password: string, new_password: string) =>
   postJSON("/auth/password", { current_password, new_password });
+
+export async function setUserAccess(
+  id: number,
+  allLibraries: boolean,
+  libraryIds: number[],
+): Promise<void> {
+  const res = await fetch(`${BASE}/users/${id}/access`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ all_libraries: allLibraries, library_ids: libraryIds }),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d?.detail || `access failed (${res.status})`);
+  }
+}
 
 export async function deleteUser(id: number): Promise<void> {
   const res = await fetch(`${BASE}/users/${id}`, { method: "DELETE", credentials: "include" });

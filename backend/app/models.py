@@ -27,6 +27,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    all_libraries: Mapped[bool] = mapped_column(Boolean, default=True)  # access to every library
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -37,6 +38,17 @@ class Library(Base):
     path: Mapped[str] = mapped_column(String, unique=True)
     group_depth: Mapped[int] = mapped_column(Integer, default=-1)  # -1 = auto-detect
     name: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class LibraryAccess(Base):
+    """Explicit per-user library grants (used when a user's all_libraries is off)."""
+
+    __tablename__ = "library_access"
+    __table_args__ = (UniqueConstraint("user_id", "library_id", name="uq_library_access"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), index=True)
+    library_id: Mapped[int] = mapped_column(ForeignKey("library.id", ondelete="CASCADE"), index=True)
 
 
 class Course(Base):

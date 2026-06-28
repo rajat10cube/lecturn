@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..access import accessible_library_ids, can_access_course
 from ..auth import require_user
 from ..db import get_db
 from ..models import Attachment, Course, Lecture, Progress, Section, User
@@ -37,9 +38,11 @@ def _cover_url(c: Course) -> str | None:
 
 @router.get("")
 def list_courses(user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
-    rows = db.scalars(
-        select(Course).where(Course.missing.is_(False)).order_by(Course.position, Course.title)
-    ).all()
+    q = select(Course).where(Course.missing.is_(False))
+    allowed = accessible_library_ids(db, user)
+    if allowed is not None:
+        q = q.where(Course.library_id.in_(allowed))
+    rows = db.scalars(q.order_by(Course.position, Course.title)).all()
 
     completed_map = dict(
         db.execute(
@@ -80,7 +83,7 @@ def get_course(
     slug: str, user: User = Depends(require_user), db: Session = Depends(get_db)
 ) -> dict:
     c = db.scalar(select(Course).where(Course.slug == slug, Course.missing.is_(False)))
-    if c is None:
+    if c is None or not can_access_course(db, user, c):
         raise HTTPException(status_code=404, detail="Course not found")
 
     sections = db.scalars(

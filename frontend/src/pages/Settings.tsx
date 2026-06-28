@@ -13,7 +13,10 @@ import {
   getUsers,
   rescanAll,
   resetUserPassword,
+  setUserAccess,
   type BrowseResult,
+  type LibraryItem,
+  type UserRow,
 } from "../api";
 import { useAuth } from "../auth";
 
@@ -76,6 +79,7 @@ function AccountSection() {
 function UsersSection() {
   const qc = useQueryClient();
   const { data: users } = useQuery({ queryKey: ["users"], queryFn: getUsers });
+  const { data: libs } = useQuery({ queryKey: ["libraries"], queryFn: getLibraries });
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [admin, setAdmin] = useState(false);
@@ -97,43 +101,12 @@ function UsersSection() {
     }
   };
 
-  const remove = async (id: number) => {
-    if (!window.confirm("Delete this user? Their progress will be removed.")) return;
-    setErr("");
-    try {
-      await deleteUser(id);
-      refresh();
-    } catch (e) {
-      setErr(String((e as Error).message));
-    }
-  };
-
-  const resetPw = async (id: number) => {
-    const pw = window.prompt("New password for this user:");
-    if (!pw) return;
-    try {
-      await resetUserPassword(id, pw);
-      window.alert("Password reset.");
-    } catch (e) {
-      setErr(String((e as Error).message));
-    }
-  };
-
   return (
     <section>
       <h1 className="row-title">Users</h1>
       <ul className="results">
         {(users ?? []).map((u) => (
-          <li key={u.id}>
-            <span>
-              <span className="res-title">{u.username}</span>{" "}
-              <span className="res-ctx">{u.isAdmin ? "admin" : "user"}</span>
-            </span>
-            <span style={{ display: "flex", gap: 8 }}>
-              <button className="chip" onClick={() => void resetPw(u.id)}>Reset password</button>
-              <button className="chip" onClick={() => void remove(u.id)}>Delete</button>
-            </span>
-          </li>
+          <UserItem key={u.id} user={u} libs={libs ?? []} onChanged={refresh} setErr={setErr} />
         ))}
       </ul>
       <form className="addbar" onSubmit={add}>
@@ -146,8 +119,108 @@ function UsersSection() {
         </label>
         <button className="btn" type="submit">Add user</button>
       </form>
+      <p className="note" style={{ padding: "4px 2px" }}>
+        New users can see all libraries by default. Use “Access” to restrict a user to specific ones.
+      </p>
       {err && <p className="note bad">{err}</p>}
     </section>
+  );
+}
+
+function UserItem({
+  user,
+  libs,
+  onChanged,
+  setErr,
+}: {
+  user: UserRow;
+  libs: LibraryItem[];
+  onChanged: () => void;
+  setErr: (s: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [all, setAll] = useState(user.allLibraries);
+  const [ids, setIds] = useState<number[]>(user.libraryIds);
+
+  const remove = async () => {
+    if (!window.confirm("Delete this user? Their progress will be removed.")) return;
+    try {
+      await deleteUser(user.id);
+      onChanged();
+    } catch (e) {
+      setErr(String((e as Error).message));
+    }
+  };
+  const resetPw = async () => {
+    const pw = window.prompt("New password for this user:");
+    if (!pw) return;
+    try {
+      await resetUserPassword(user.id, pw);
+      window.alert("Password reset.");
+    } catch (e) {
+      setErr(String((e as Error).message));
+    }
+  };
+  const toggle = (id: number) =>
+    setIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const saveAccess = async () => {
+    try {
+      await setUserAccess(user.id, all, ids);
+      setEditing(false);
+      onChanged();
+    } catch (e) {
+      setErr(String((e as Error).message));
+    }
+  };
+
+  const accessLabel = user.isAdmin
+    ? "all libraries (admin)"
+    : user.allLibraries
+      ? "all libraries"
+      : `${user.libraryIds.length} librar${user.libraryIds.length === 1 ? "y" : "ies"}`;
+
+  return (
+    <li style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+        <span>
+          <span className="res-title">{user.username}</span>{" "}
+          <span className="res-ctx">{user.isAdmin ? "admin" : "user"} · {accessLabel}</span>
+        </span>
+        <span style={{ display: "flex", gap: 8 }}>
+          {!user.isAdmin && (
+            <button className="chip" onClick={() => setEditing((v) => !v)}>Access</button>
+          )}
+          <button className="chip" onClick={() => void resetPw()}>Reset password</button>
+          <button className="chip" onClick={() => void remove()}>Delete</button>
+        </span>
+      </div>
+
+      {editing && !user.isAdmin && (
+        <div className="browser">
+          <label className="chip" style={{ cursor: "pointer" }}>
+            <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> All libraries
+          </label>
+          {!all && (
+            <ul className="results" style={{ margin: "10px 0" }}>
+              {libs.map((l) => (
+                <li key={l.id}>
+                  <label className="linklike" style={{ cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={ids.includes(l.id)}
+                      onChange={() => toggle(l.id)}
+                    />{" "}
+                    {l.name || l.path}
+                  </label>
+                </li>
+              ))}
+              {libs.length === 0 && <li><span className="res-ctx">No libraries yet.</span></li>}
+            </ul>
+          )}
+          <button className="btn" onClick={() => void saveAccess()}>Save access</button>
+        </div>
+      )}
+    </li>
   );
 }
 

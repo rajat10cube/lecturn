@@ -11,24 +11,27 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..auth import require_auth
+from ..access import can_access_course
+from ..auth import require_user
 from ..db import get_db
-from ..models import Course, Lecture
+from ..models import Course, Lecture, User
 from ..paths import library_root, safe_media_path
 from ..streaming import range_response
 from ..transcode import remux_response
 
-router = APIRouter(prefix="/lectures", tags=["lectures"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/lectures", tags=["lectures"])
 
 _TS_RE = re.compile(r"(\d\d:\d\d:\d\d),(\d{3})")
 
 
-def _resolve(db: Session, lecture_id: int) -> tuple[Lecture, "Course", object]:
+def _resolve(db: Session, lecture_id: int, user: User) -> tuple[Lecture, "Course", object]:
     lec = db.get(Lecture, lecture_id)
     if lec is None:
         raise HTTPException(404, "Lecture not found")
     course = db.get(Course, lec.course_id)
-    root = library_root(db, course) if course else None
+    if course is None or not can_access_course(db, user, course):
+        raise HTTPException(404, "Lecture not found")
+    root = library_root(db, course)
     if root is None:
         raise HTTPException(404, "Library not available")
     return lec, course, root
@@ -39,8 +42,10 @@ def srt_to_vtt(text: str) -> str:
 
 
 @router.get("/{lecture_id}")
-def get_lecture(lecture_id: int, db: Session = Depends(get_db)) -> dict:
-    lec, course, _ = _resolve(db, lecture_id)
+def get_lecture(
+    lecture_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)
+) -> dict:
+    lec, course, _ = _resolve(db, lecture_id, user)
     return {
         "id": lec.id,
         "title": lec.title,
@@ -54,8 +59,11 @@ def get_lecture(lecture_id: int, db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/{lecture_id}/stream")
-def stream(lecture_id: int, request: Request, db: Session = Depends(get_db)):
-    lec, _course, root = _resolve(db, lecture_id)
+def stream(
+    lecture_id: int, request: Request, user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    lec, _course, root = _resolve(db, lecture_id, user)
     path = safe_media_path(root, lec.path)
     if path is None:
         raise HTTPException(404, "File not found")
@@ -64,8 +72,8 @@ def stream(lecture_id: int, request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/{lecture_id}/remux")
-def remux(lecture_id: int, db: Session = Depends(get_db)):
-    lec, _course, root = _resolve(db, lecture_id)
+def remux(lecture_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    lec, _course, root = _resolve(db, lecture_id, user)
     path = safe_media_path(root, lec.path)
     if path is None:
         raise HTTPException(404, "File not found")
@@ -73,8 +81,8 @@ def remux(lecture_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{lecture_id}/subtitle")
-def subtitle(lecture_id: int, db: Session = Depends(get_db)):
-    lec, _course, root = _resolve(db, lecture_id)
+def subtitle(lecture_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    lec, _course, root = _resolve(db, lecture_id, user)
     if not lec.subtitle_path:
         raise HTTPException(404, "No subtitle")
     path = safe_media_path(root, lec.subtitle_path)
@@ -87,8 +95,10 @@ def subtitle(lecture_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{lecture_id}/next")
-def next_lecture(lecture_id: int, db: Session = Depends(get_db)) -> dict:
-    lec, _course, _root = _resolve(db, lecture_id)
+def next_lecture(
+    lecture_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)
+) -> dict:
+    lec, _course, _root = _resolve(db, lecture_id, user)
     nxt = db.scalar(
         select(Lecture)
         .where(Lecture.course_id == lec.course_id, Lecture.position > lec.position)
