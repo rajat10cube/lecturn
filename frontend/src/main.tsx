@@ -3,6 +3,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
+import { AuthProvider } from "./auth";
+import AuthGate from "./components/AuthGate";
 import CoursePage from "./pages/CoursePage";
 import Library from "./pages/Library";
 import Settings from "./pages/Settings";
@@ -13,13 +15,17 @@ const queryClient = new QueryClient();
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Library />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/course/:slug" element={<CoursePage />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <AuthGate>
+            <Routes>
+              <Route path="/" element={<Library />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/course/:slug" element={<CoursePage />} />
+            </Routes>
+          </AuthGate>
+        </BrowserRouter>
+      </AuthProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 );

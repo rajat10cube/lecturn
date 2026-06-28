@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { getCourses, getSearch, type CourseCard } from "../api";
+import { useAuth } from "../auth";
 
 function Card({ c }: { c: CourseCard }) {
   const pct = c.lectureCount ? Math.round((c.completedCount / c.lectureCount) * 100) : 0;
@@ -24,6 +25,7 @@ function Card({ c }: { c: CourseCard }) {
 }
 
 export default function Library() {
+  const { signOut } = useAuth();
   const { data, isLoading, isError } = useQuery({ queryKey: ["courses"], queryFn: getCourses });
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
@@ -70,6 +72,7 @@ export default function Library() {
           onChange={(e) => setQ(e.target.value)}
         />
         <Link to="/settings" className="chip">Libraries</Link>
+        <button className="chip" onClick={() => void signOut()}>Logout</button>
       </header>
 
       {isLoading && <p className="note">Loading library…</p>}

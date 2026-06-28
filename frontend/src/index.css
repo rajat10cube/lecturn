@@ -170,6 +170,17 @@ code { background: var(--line); padding: 1px 6px; border-radius: 6px; font-size:
 .mark.done { background: var(--ok); border-color: var(--ok); }
 .mark.partial { border-color: var(--accent); }
 
+/* ---------- login ---------- */
+.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.login-card {
+  display: flex; flex-direction: column; gap: 12px; width: 320px; padding: 28px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+}
+.login-card h1 { margin: 0; letter-spacing: -0.02em; }
+.login-card .tagline { margin: -4px 0 8px; color: var(--muted); }
+.login-card .btn { text-align: center; }
+.login-card .bad { color: var(--bad); font-size: 0.9rem; }
+
 /* ---------- settings / libraries ---------- */
 .addbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
 .addbar .search { flex: 1 1 320px; }

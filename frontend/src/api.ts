@@ -64,10 +64,46 @@ export interface ProgressIn {
   completed?: boolean;
 }
 
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: (() => void) | null): void {
+  onUnauthorized = fn;
+}
+
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { credentials: "include" });
+  if (res.status === 401) {
+    onUnauthorized?.();
+    throw new Error("unauthorized");
+  }
   if (!res.ok) throw new Error(`${path} -> ${res.status}`);
   return res.json() as Promise<T>;
+}
+
+export interface Me {
+  username: string;
+  authDisabled: boolean;
+}
+
+export async function getMe(): Promise<Me | null> {
+  const res = await fetch(`${BASE}/auth/me`, { credentials: "include" });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`me -> ${res.status}`);
+  return res.json();
+}
+
+export async function login(username: string, password: string): Promise<Me> {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) throw new Error("Invalid username or password");
+  return res.json();
+}
+
+export async function logout(): Promise<void> {
+  await fetch(`${BASE}/auth/logout`, { method: "POST", credentials: "include" });
 }
 
 export interface SearchResult {

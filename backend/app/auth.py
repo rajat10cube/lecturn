@@ -1,37 +1,43 @@
-"""HTTP Basic auth dependency (single shared credential).
-
-A clean seam for future per-user / forward-auth: swap this dependency without
-touching the routers.
+"""Auth guard: accepts a session cookie (set by the login page) OR HTTP Basic
+(for API/CLI). Returns 401 *without* a WWW-Authenticate header so browsers don't
+show the native Basic-auth popup — the SPA renders its own login page instead.
 """
 
 from __future__ import annotations
 
+import base64
+import binascii
 import secrets
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import HTTPException, Request, status
 
 from .config import get_settings
 
-_security = HTTPBasic(auto_error=False)
 
-
-def require_auth(
-    credentials: HTTPBasicCredentials | None = Depends(_security),
-) -> None:
-    settings = get_settings()
-    if settings.auth != "basic":
-        return
-
-    unauthorized = HTTPException(
-        status.HTTP_401_UNAUTHORIZED,
-        "Authentication required",
-        headers={"WWW-Authenticate": "Basic"},
+def check_credentials(username: str, password: str) -> bool:
+    s = get_settings()
+    return secrets.compare_digest(username, s.auth_user) and secrets.compare_digest(
+        password, s.auth_pass
     )
-    if credentials is None:
-        raise unauthorized
 
-    ok_user = secrets.compare_digest(credentials.username, settings.auth_user)
-    ok_pass = secrets.compare_digest(credentials.password, settings.auth_pass)
-    if not (ok_user and ok_pass):
-        raise unauthorized
+
+def _check_basic(header: str | None) -> bool:
+    if not header or not header.lower().startswith("basic "):
+        return False
+    try:
+        decoded = base64.b64decode(header.split(" ", 1)[1]).decode("utf-8")
+    except (binascii.Error, ValueError, UnicodeDecodeError):
+        return False
+    user, _, password = decoded.partition(":")
+    return check_credentials(user, password)
+
+
+def require_auth(request: Request) -> None:
+    s = get_settings()
+    if s.auth == "none":
+        return
+    if request.session.get("user"):
+        return
+    if _check_basic(request.headers.get("Authorization")):
+        return
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")

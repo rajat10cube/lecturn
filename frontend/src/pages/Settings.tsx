@@ -10,8 +10,10 @@ import {
   rescanAll,
   type BrowseResult,
 } from "../api";
+import { useAuth } from "../auth";
 
 export default function Settings() {
+  const { signOut } = useAuth();
   const qc = useQueryClient();
   const { data: libs } = useQuery({ queryKey: ["libraries"], queryFn: getLibraries });
 
@@ -74,6 +76,7 @@ export default function Settings() {
       <header className="topbar">
         <Link to="/" className="brand">Lecturn</Link>
         <Link to="/" className="chip">← Library</Link>
+        <button className="chip" onClick={() => void signOut()}>Logout</button>
       </header>
 
       <h1 className="row-title">Libraries</h1>

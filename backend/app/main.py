@@ -9,11 +9,22 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from . import __version__
 from .config import get_settings
 from .db import init_db
-from .routers import admin, courses, health, lectures, libraries, media, progress, search
+from .routers import (
+    admin,
+    auth,
+    courses,
+    health,
+    lectures,
+    libraries,
+    media,
+    progress,
+    search,
+)
 
 settings = get_settings()
 
@@ -34,6 +45,14 @@ def create_app() -> FastAPI:
     root_path = settings.base_path.rstrip("/") if settings.base_path not in ("", "/") else ""
     app = FastAPI(title="Lecturn", version=__version__, lifespan=lifespan, root_path=root_path)
 
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.session_secret(),
+        same_site="lax",
+        https_only=False,
+        max_age=60 * 60 * 24 * 30,  # 30-day login
+    )
+
     if settings.dev_cors:
         app.add_middleware(
             CORSMiddleware,
@@ -44,6 +63,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(health.router, prefix="/api")
+    app.include_router(auth.router, prefix="/api")
     app.include_router(courses.router, prefix="/api")
     app.include_router(lectures.router, prefix="/api")
     app.include_router(libraries.router, prefix="/api")

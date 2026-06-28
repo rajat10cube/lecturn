@@ -50,9 +50,10 @@ class Settings(BaseSettings):
     transcode: str = "on-demand"         # off|on-demand|pre-pass
 
     # --- auth ---
-    auth: str = "basic"                  # none|basic
+    auth: str = "basic"                  # none|basic (basic = require login)
     auth_user: str = "admin"
     auth_pass: str = "change-me"
+    secret_key: str | None = None        # session signing key (auto-persisted if unset)
 
     # --- serving ---
     base_path: str = "/"
@@ -63,6 +64,24 @@ class Settings(BaseSettings):
             return self.database_url
         self.data_dir.mkdir(parents=True, exist_ok=True)
         return f"sqlite:///{(self.data_dir / 'lecturn.db').as_posix()}"
+
+    def session_secret(self) -> str:
+        """Stable signing key for session cookies (persisted so logins survive restarts)."""
+        import secrets as _secrets
+
+        if self.secret_key:
+            return self.secret_key
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        f = self.data_dir / "secret.key"
+        if f.exists():
+            return f.read_text(encoding="utf-8").strip()
+        value = _secrets.token_hex(32)
+        f.write_text(value, encoding="utf-8")
+        try:
+            f.chmod(0o600)
+        except OSError:
+            pass
+        return value
 
     def libraries(self) -> list[LibraryConfig]:
         if self.config:
