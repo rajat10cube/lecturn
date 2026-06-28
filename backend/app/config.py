@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     # --- auth ---
     auth: str = "basic"                  # none|basic (basic = require login)
     auth_user: str = "admin"
-    auth_pass: str = "change-me"
+    auth_pass: str = ""                   # empty -> first-run signup creates the admin in the UI
     secret_key: str | None = None        # session signing key (auto-persisted if unset)
 
     # --- serving ---

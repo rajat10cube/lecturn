@@ -4,10 +4,10 @@
 # Run on the Proxmox host:
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/ct/lecturn.sh)"
 #
-# Pick Default (presets + random password) or Advanced (set CT id, resources,
-# storage, etc.). Every value can also be preset via env (CTID, CT_HOSTNAME,
-# CORES, RAM_MB, DISK_GB, STORAGE, BRIDGE, UNPRIVILEGED, MEDIA_HOST,
-# LECTURN_AUTH_PASS) to run non-interactively.
+# Pick Default (presets) or Advanced (set CT id, resources, storage, etc.).
+# You create the admin account on first login in the web UI. Every value can be
+# preset via env (CTID, CT_HOSTNAME, CORES, RAM_MB, DISK_GB, STORAGE, BRIDGE,
+# UNPRIVILEGED) to run non-interactively.
 set -euo pipefail
 
 REPO="https://github.com/rajat10cube/lecturn"
@@ -33,11 +33,6 @@ EOF
 command -v pct >/dev/null || die "Run this on a Proxmox VE host (pct not found)."
 [ "$(id -u)" -eq 0 ] || die "Run as root."
 
-gen_pass() {
-  { openssl rand -base64 24 2>/dev/null || head -c 32 /dev/urandom | base64; } \
-    | tr -dc 'A-Za-z0-9' | head -c 16
-}
-
 pick_storage() { # $1 = content type (rootdir | vztmpl)
   local list
   list=$(pvesm status --content "$1" 2>/dev/null | awk 'NR>1 {print $1}')
@@ -52,7 +47,6 @@ RAM_MB="${RAM_MB:-2048}"
 DISK_GB="${DISK_GB:-10}"
 BRIDGE="${BRIDGE:-vmbr0}"
 UNPRIVILEGED="${UNPRIVILEGED:-1}"
-LECTURN_AUTH_PASS="${LECTURN_AUTH_PASS:-$(gen_pass)}"
 STORAGE="${STORAGE:-$(pick_storage rootdir)}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-$(pick_storage vztmpl)}"
 CTID="${CTID:-$(pvesh get /cluster/nextid 2>/dev/null || true)}"
@@ -66,8 +60,8 @@ header
 if [ -t 0 ] && command -v whiptail >/dev/null; then
   MODE=$(whiptail --title "Lecturn LXC" --menu \
 "How do you want to install Lecturn?" 13 64 2 \
-    "default"  "Presets + random password (quick)" \
-    "advanced" "Set CT id, resources, storage, password…" \
+    "default"  "Presets (quick)" \
+    "advanced" "Set CT id, resources, storage…" \
     3>&1 1>&2 2>&3) || die "cancelled"
 
   if [ "$MODE" = "advanced" ]; then
@@ -80,8 +74,6 @@ if [ -t 0 ] && command -v whiptail >/dev/null; then
     BRIDGE=$(whiptail --title "Advanced" --inputbox "Network bridge" 8 60 "$BRIDGE" 3>&1 1>&2 2>&3) || die "cancelled"
     if whiptail --title "Privilege" --yesno "Unprivileged container? (recommended)\n\nChoose <No> only if your course files are not world-readable." 12 64; then
       UNPRIVILEGED=1; else UNPRIVILEGED=0; fi
-    LECTURN_AUTH_PASS=$(whiptail --title "Password" --passwordbox \
-"Admin password (login user: admin)" 8 60 "$LECTURN_AUTH_PASS" 3>&1 1>&2 2>&3) || die "cancelled"
   fi
   whiptail --title "Confirm" --yesno \
 "Create CT $CTID ($CT_HOSTNAME)?\n
@@ -125,15 +117,15 @@ rm -f /tmp/lecturn-install.sh
 
 msg "Installing Lecturn (clones repo + builds frontend; a few minutes)…"
 pct exec "$CTID" -- env \
-  LECTURN_REPO="$REPO" LECTURN_AUTH_PASS="$LECTURN_AUTH_PASS" \
+  LECTURN_REPO="$REPO" \
   bash /root/lecturn-install.sh
 
 IP=$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}')
 echo
 ok "Done!  Lecturn → http://${IP:-<ct-ip>}:8000"
-ok "Login:  admin / $LECTURN_AUTH_PASS"
+ok "Open it and create your admin (master) account on first login."
 echo
-msg "Add your courses in the web UI → Libraries. First make them visible to the CT, e.g.:"
+msg "Then add your courses in the web UI → Libraries. First make them visible to the CT, e.g.:"
 msg "  pct set $CTID -mp0 /your/host/courses,mp=/mnt/courses,ro=1 && pct reboot $CTID"
 msg "then add the path /mnt/courses in the UI."
 [ "$UNPRIVILEGED" = "1" ] && msg "(unprivileged: if the folder isn't readable inside the CT, run 'chmod -R o+rX' on it on the host.)"

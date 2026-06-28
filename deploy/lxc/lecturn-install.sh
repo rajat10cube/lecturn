@@ -17,7 +17,7 @@ NODE_MAJOR="${NODE_MAJOR:-22}"
 LECTURN_REPO="${LECTURN_REPO:-}"
 LECTURN_REF="${LECTURN_REF:-main}"
 AUTH_USER="${LECTURN_AUTH_USER:-admin}"
-AUTH_PASS="${LECTURN_AUTH_PASS:-change-me}"
+AUTH_PASS="${LECTURN_AUTH_PASS:-}"   # empty -> first-run signup creates the admin
 ENV_FILE="$DATA_DIR/lecturn.env"
 CONFIG_FILE="$DATA_DIR/lecturn.yaml"
 
@@ -75,13 +75,13 @@ libraries: []
 YAML
 fi
 if [ ! -f "$ENV_FILE" ]; then
-  cat > "$ENV_FILE" <<ENV
-LECTURN_CONFIG=$CONFIG_FILE
-LECTURN_DATA_DIR=$DATA_DIR
-LECTURN_AUTH=basic
-LECTURN_AUTH_USER=$AUTH_USER
-LECTURN_AUTH_PASS=$AUTH_PASS
-ENV
+  {
+    echo "LECTURN_CONFIG=$CONFIG_FILE"
+    echo "LECTURN_DATA_DIR=$DATA_DIR"
+    echo "LECTURN_AUTH=basic"
+    echo "LECTURN_AUTH_USER=$AUTH_USER"
+    [ -n "$AUTH_PASS" ] && echo "LECTURN_AUTH_PASS=$AUTH_PASS"
+  } > "$ENV_FILE"
 fi
 
 chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR" "$DATA_DIR"
@@ -111,8 +111,11 @@ systemctl daemon-reload
 systemctl enable lecturn >/dev/null 2>&1 || true
 systemctl restart lecturn
 
-SHOWPASS="$(sed -n 's/^LECTURN_AUTH_PASS=//p' "$ENV_FILE")"
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 msg "Done ✔  Lecturn → http://${IP:-<container-ip>}:$PORT"
-msg "Login: $AUTH_USER / $SHOWPASS"
+if grep -q '^LECTURN_AUTH_PASS=' "$ENV_FILE"; then
+  msg "Login: $AUTH_USER / $(sed -n 's/^LECTURN_AUTH_PASS=//p' "$ENV_FILE")"
+else
+  msg "Open the app and create your admin (master) account on first login."
+fi
 msg "Add your course folders in the web UI → Libraries."

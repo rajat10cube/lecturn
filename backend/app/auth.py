@@ -48,19 +48,29 @@ def authenticate(db: Session, username: str, password: str) -> User | None:
 
 
 def ensure_admin() -> None:
-    """First-run: seed an admin from the configured credentials if no users exist."""
+    """Seed an admin only when explicitly configured, or in single-user mode.
+
+    Default (no ``LECTURN_AUTH_PASS``): leave the user table empty so the first
+    visit shows a one-time signup that creates the master admin in the UI.
+    """
+    import secrets as _secrets
+
     s = get_settings()
     with SessionLocal() as db:
         if db.scalar(select(func.count()).select_from(User)):
             return
-        db.add(
-            User(
-                username=s.auth_user,
-                password_hash=hash_password(s.auth_pass),
-                is_admin=True,
-            )
-        )
-        db.commit()
+        if s.auth == "none":
+            # single-user mode still needs a user row for progress; login is disabled
+            password = _secrets.token_hex(16)
+            db.add(User(username=s.auth_user or "admin",
+                        password_hash=hash_password(password), is_admin=True))
+            db.commit()
+        elif s.auth_pass:
+            # operator-preset admin (e.g. Docker/automation) -> skip signup
+            db.add(User(username=s.auth_user or "admin",
+                        password_hash=hash_password(s.auth_pass), is_admin=True))
+            db.commit()
+        # else: leave empty -> first-run signup via the UI
 
 
 def _basic_user(db: Session, header: str | None) -> User | None:

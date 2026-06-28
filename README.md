@@ -19,9 +19,10 @@ server.
 - **Streaming** — HTTP-range (path-traversal-guarded) `.mp4` direct play, `.ts`
   via `mpegts.js`, on-the-fly `.mkv` remux (`ffmpeg -c copy`), SRT→WebVTT
   subtitles.
-- **Accounts** — in-app login page (cookie session) with **multiple users**:
-  admins manage users + libraries; each user gets their **own progress**. Hashed
-  passwords (PBKDF2), self-serve password change. Basic auth also works for API/CLI.
+- **Accounts** — **first-run admin signup**, then a cookie-session login with
+  **multiple users**: admins manage users + libraries; each user gets their **own
+  progress**. Hashed passwords (PBKDF2), self-serve password change. Basic auth
+  also works for API/CLI.
 - **Libraries** — add/remove course folders from the web UI (like Jellyfin),
   with a built-in folder browser; auto-scans on add.
 - **Library UI** — searchable grid (SQLite FTS5) across courses *and* lessons
@@ -92,13 +93,15 @@ See **[deploy/lxc/README.md](deploy/lxc/README.md)**. Reverse proxy:
 lives in a data volume. Put it behind your existing reverse proxy / VPN.
 
 ## Accounts
-Lecturn shows its own **login page** (cookie session). On first run an **admin**
-is created from `LECTURN_AUTH_USER` / `LECTURN_AUTH_PASS` (default `admin` /
-`change-me` — **change it before exposing**). Admins add more users in
-**Settings → Users**; each user has their own watch progress. Passwords are
-hashed (PBKDF2) and users can change their own in **Settings → Account**.
-API/CLI clients may use HTTP Basic (e.g. `curl -u`). Set `LECTURN_AUTH=none` to
-disable auth entirely (single-user, LAN/VPN only).
+On first launch Lecturn shows a **one-time signup** to create your **master admin**
+account (username + password) — nothing is preconfigured. After that it's a normal
+**login page** (cookie session). Admins add more users in **Settings → Users**;
+each user has their own watch progress. Passwords are hashed (PBKDF2) and users
+change their own in **Settings → Account**.
+
+For automation you can pre-create the admin by setting `LECTURN_AUTH_USER` /
+`LECTURN_AUTH_PASS` (skips signup). API/CLI clients may use HTTP Basic (`curl -u`).
+Set `LECTURN_AUTH=none` to disable auth entirely (single-user, LAN/VPN only).
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, conventions, and PR guidelines.

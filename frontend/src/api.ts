@@ -98,6 +98,31 @@ export async function getMe(): Promise<Me | null> {
   return res.json();
 }
 
+export interface AuthStatus {
+  authDisabled: boolean;
+  needsSetup: boolean;
+  user: { username: string; isAdmin: boolean } | null;
+}
+
+export async function getStatus(): Promise<AuthStatus> {
+  const res = await fetch(`${BASE}/auth/status`, { credentials: "include" });
+  if (!res.ok) throw new Error(`status -> ${res.status}`);
+  return res.json();
+}
+
+export async function setupAdmin(username: string, password: string): Promise<void> {
+  const res = await fetch(`${BASE}/auth/setup`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d?.detail || "setup failed");
+  }
+}
+
 export async function login(username: string, password: string): Promise<Me> {
   const res = await fetch(`${BASE}/auth/login`, {
     method: "POST",

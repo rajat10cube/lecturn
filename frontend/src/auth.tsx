@@ -7,14 +7,22 @@ import {
   type ReactNode,
 } from "react";
 
-import { getMe, login as apiLogin, logout as apiLogout, setUnauthorizedHandler } from "./api";
+import {
+  getStatus,
+  login as apiLogin,
+  logout as apiLogout,
+  setupAdmin,
+  setUnauthorizedHandler,
+} from "./api";
 
 interface AuthCtx {
   ready: boolean;
   user: string | null;
   isAdmin: boolean;
   authDisabled: boolean;
+  needsSetup: boolean;
   signIn: (username: string, password: string) => Promise<void>;
+  signUp: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -31,12 +39,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authDisabled, setAuthDisabled] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   const refresh = useCallback(async () => {
-    const me = await getMe();
-    setUser(me ? me.username : null);
-    setIsAdmin(me ? me.isAdmin : false);
-    setAuthDisabled(me ? me.authDisabled : false);
+    const s = await getStatus();
+    setAuthDisabled(s.authDisabled);
+    setNeedsSetup(s.needsSetup);
+    setUser(s.user ? s.user.username : null);
+    setIsAdmin(s.user ? s.user.isAdmin : false);
     setReady(true);
   }, []);
 
@@ -52,6 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(me.isAdmin);
     setAuthDisabled(me.authDisabled);
   };
+  const signUp = async (username: string, password: string) => {
+    await setupAdmin(username, password);
+    await refresh();
+  };
   const signOut = async () => {
     await apiLogout();
     setUser(null);
@@ -59,7 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <Ctx.Provider value={{ ready, user, isAdmin, authDisabled, signIn, signOut }}>
+    <Ctx.Provider
+      value={{ ready, user, isAdmin, authDisabled, needsSetup, signIn, signUp, signOut }}
+    >
       {children}
     </Ctx.Provider>
   );

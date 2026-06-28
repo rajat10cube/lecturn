@@ -21,7 +21,7 @@ TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
 UNPRIVILEGED="${UNPRIVILEGED:-1}"          # 1=unprivileged (safer). See media note.
 MEDIA_HOST="${MEDIA_HOST:-}"               # host path to your courses (bind-mounted RO)
 MEDIA_CT="${MEDIA_CT:-/libraries/courses}"
-LECTURN_AUTH_PASS="${LECTURN_AUTH_PASS:-change-me}"
+LECTURN_AUTH_PASS="${LECTURN_AUTH_PASS:-}"  # empty -> create the admin on first login (UI)
 
 # Where to get Lecturn from. Default = clone the public repo (works for curl|bash).
 # Set LECTURN_REPO= (empty) when running from a local clone to copy local source.
@@ -95,12 +95,16 @@ pct push "$CTID" "$INSTALLER" /root/lecturn-install.sh -perms 755
 msg "Running installer…"
 pct exec "$CTID" -- env \
   LECTURN_REPO="$LECTURN_REPO" \
-  MEDIA_CT="$MEDIA_CT" \
   LECTURN_AUTH_PASS="$LECTURN_AUTH_PASS" \
   bash /root/lecturn-install.sh
 
 IP=$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}')
-msg "All set ✔  Lecturn → http://${IP:-<ct-ip>}:8000   (admin / $LECTURN_AUTH_PASS)"
+msg "All set ✔  Lecturn → http://${IP:-<ct-ip>}:8000"
+if [ -n "$LECTURN_AUTH_PASS" ]; then
+  msg "Login: admin / $LECTURN_AUTH_PASS"
+else
+  msg "Create your admin (master) account on first login."
+fi
 [ "$UNPRIVILEGED" = "1" ] && [ -n "$MEDIA_HOST" ] && {
   msg "NOTE (unprivileged): if courses don't appear, files must be readable by the"
   msg "      mapped UID — 'chmod -R o+rX $MEDIA_HOST' on the host, or recreate with UNPRIVILEGED=0."
