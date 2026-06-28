@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 
 from ..access import can_access_course
 from ..auth import require_user
-from ..config import get_settings
+from ..covers import cover_path
 from ..db import get_db
-from ..models import Course, User
+from ..models import Course, Library, User
 from ..paths import library_root, safe_media_path
 
 router = APIRouter(prefix="/media", tags=["media"])
@@ -28,8 +28,10 @@ def cover(slug: str, user: User = Depends(require_user), db: Session = Depends(g
         path = safe_media_path(root, c.cover_path) if root else None
         if path is not None:
             return FileResponse(path)
-    # 2) generated thumbnail cached in the data dir
-    generated = get_settings().data_dir / "covers" / f"{c.id}.jpg"
-    if generated.is_file():
-        return FileResponse(generated)
+    # 2) generated thumbnail, keyed by the course's on-disk location
+    lib = db.get(Library, c.library_id) if c.library_id else None
+    if lib is not None:
+        generated = cover_path(lib.path, c.path)
+        if generated.is_file():
+            return FileResponse(generated)
     raise HTTPException(404, "No cover")

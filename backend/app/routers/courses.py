@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 
 from ..access import accessible_library_ids, can_access_course
 from ..auth import require_user
-from ..config import get_settings
+from ..covers import cover_path, cover_token
 from ..db import get_db
-from ..models import Attachment, Course, Lecture, Progress, Section, User
+from ..models import Attachment, Course, Lecture, Library, Progress, Section, User
 
 router = APIRouter(prefix="/courses", tags=["courses"])
 
@@ -33,11 +33,13 @@ def _playback(lec: Lecture) -> str:
     return "remux"  # mkv/avi/... -> server remux (Phase 4)
 
 
-def _cover_url(c: Course) -> str | None:
+def _cover_url(c: Course, lib_path: str | None) -> str | None:
     if c.cover_path:
         return f"/api/media/cover/{c.slug}"
-    if (get_settings().data_dir / "covers" / f"{c.id}.jpg").is_file():
-        return f"/api/media/cover/{c.slug}"
+    # generated thumbnail: include a location-derived token so the browser drops
+    # its cache if the course at this slug ever changes identity.
+    if lib_path and cover_path(lib_path, c.path).is_file():
+        return f"/api/media/cover/{c.slug}?v={cover_token(lib_path, c.path)}"
     return None
 
 
@@ -48,6 +50,7 @@ def list_courses(user: User = Depends(require_user), db: Session = Depends(get_d
     if allowed is not None:
         q = q.where(Course.library_id.in_(allowed))
     rows = db.scalars(q.order_by(Course.position, Course.title)).all()
+    lib_paths = dict(db.execute(select(Library.id, Library.path)).all())
 
     completed_map = dict(
         db.execute(
@@ -72,7 +75,7 @@ def list_courses(user: User = Depends(require_user), db: Session = Depends(get_d
             "slug": c.slug,
             "title": c.title,
             "category": c.category,
-            "cover": _cover_url(c),
+            "cover": _cover_url(c, lib_paths.get(c.library_id)),
             "lectureCount": c.lecture_count,
             "completedCount": completed_map.get(c.id, 0),
             "lastActivity": str(activity_map[c.id]) if activity_map.get(c.id) else None,
@@ -91,6 +94,8 @@ def get_course(
     c = db.scalar(select(Course).where(Course.slug == slug, Course.missing.is_(False)))
     if c is None or not can_access_course(db, user, c):
         raise HTTPException(status_code=404, detail="Course not found")
+
+    lib = db.get(Library, c.library_id) if c.library_id else None
 
     sections = db.scalars(
         select(Section).where(Section.course_id == c.id).order_by(Section.position)
@@ -137,7 +142,7 @@ def get_course(
         "slug": c.slug,
         "title": c.title,
         "category": c.category,
-        "cover": _cover_url(c),
+        "cover": _cover_url(c, lib.path if lib else None),
         "lectureCount": c.lecture_count,
         "completedCount": sum(1 for p in prog.values() if p.completed),
         "resumeLectureId": resume_id,

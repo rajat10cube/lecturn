@@ -37,6 +37,18 @@ def _make_video(path: Path, secs: int = 3) -> Path:
     return path
 
 
+def _make_src_video(path: Path, src: str, secs: int = 5) -> Path:
+    """Make a video from a distinct lavfi pattern (e.g. testsrc vs smptebars)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["ffmpeg", "-f", "lavfi", "-i",
+         f"{src}=size=320x240:duration={secs}:rate=10",
+         "-pix_fmt", "yuv420p", "-y", str(path)],
+        capture_output=True,
+    )
+    return path
+
+
 @needs_ffmpeg
 def test_probe_duration_reads_real_length(tmp_path):
     d = probe_duration(_make_video(tmp_path / "a.mp4", 3))
@@ -75,3 +87,45 @@ def test_scan_enriches_duration_and_cover(tmp_path):
     detail = c.get(f"/api/courses/{card['slug']}", auth=ADMIN).json()
     lec = detail["sections"][0]["lectures"][0]
     assert lec["durationSec"] is not None and lec["durationSec"] > 2
+
+
+def test_cover_token_is_location_based():
+    from app.covers import cover_token
+
+    a = cover_token("/media/lib", "Course A")
+    assert a != cover_token("/media/lib", "Course B")  # different course
+    assert a != cover_token("/other/lib", "Course A")  # different library path
+    assert a == cover_token("/media/lib", "Course A")  # stable for same location
+
+
+@needs_ffmpeg
+def test_each_course_gets_its_own_cover(tmp_path):
+    # two visually distinct courses — covers must not be shared/swapped
+    _make_src_video(tmp_path / "lib" / "Bars Course" / "01 - S" / "001 a.mp4", "smptebars")
+    _make_src_video(tmp_path / "lib" / "Test Course" / "01 - S" / "001 a.mp4", "testsrc")
+    c = TestClient(app)
+    c.post("/api/libraries", json={"path": str(tmp_path / "lib")}, auth=ADMIN)
+    c.post("/api/admin/rescan", params={"wait": "true"}, auth=ADMIN)
+
+    cards = {x["title"]: x for x in c.get("/api/courses", auth=ADMIN).json()["courses"]}
+    assert cards["Bars Course"]["cover"] and cards["Test Course"]["cover"]
+    bars = c.get(cards["Bars Course"]["cover"], auth=ADMIN)
+    test = c.get(cards["Test Course"]["cover"], auth=ADMIN)
+    assert bars.status_code == 200 and test.status_code == 200
+    assert bars.content != test.content  # distinct frames -> distinct files
+
+
+def test_scan_removes_orphan_covers(tmp_path):
+    from app.config import get_settings
+
+    _make_video(tmp_path / "lib" / "My Course" / "01 - S" / "001 a.mp4", 2)
+    covers = get_settings().data_dir / "covers"
+    covers.mkdir(parents=True, exist_ok=True)
+    orphan = covers / "0.jpg"  # legacy id-keyed file from before the fix
+    orphan.write_bytes(b"stale")
+
+    c = TestClient(app)
+    c.post("/api/libraries", json={"path": str(tmp_path / "lib")}, auth=ADMIN)
+    c.post("/api/admin/rescan", params={"wait": "true"}, auth=ADMIN)
+
+    assert not orphan.exists()

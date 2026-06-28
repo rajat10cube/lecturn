@@ -123,7 +123,8 @@ def _generate_covers(db, settings, lib: Library) -> None:
 
     if not ffmpeg_available():
         return
-    covers_dir = settings.data_dir / "covers"
+    from ..covers import cover_path
+
     root = Path(lib.path)
     courses = db.scalars(
         select(Course).where(Course.library_id == lib.id, Course.missing.is_(False))
@@ -131,7 +132,7 @@ def _generate_covers(db, settings, lib: Library) -> None:
     for c in courses:
         if c.cover_path:  # has on-disk art
             continue
-        out = covers_dir / f"{c.id}.jpg"
+        out = cover_path(lib.path, c.path)
         if out.exists():
             continue
         lec = db.scalar(
@@ -146,6 +147,31 @@ def _generate_covers(db, settings, lib: Library) -> None:
         _status["phase"] = "thumbnails"
         generate_cover(root / lec.path, out, at)
     _status["phase"] = "scanning"
+
+
+def _cleanup_covers(db) -> None:
+    """Drop generated covers that no longer belong to any course.
+
+    Removes orphans from deleted courses/libraries and legacy id-keyed files,
+    so the covers directory only holds current, correctly-addressed thumbnails.
+    """
+    from ..covers import cover_token, covers_dir
+
+    cdir = covers_dir()
+    if not cdir.is_dir():
+        return
+    lib_paths = dict(db.execute(select(Library.id, Library.path)).all())
+    keep = {
+        f"{cover_token(lib_paths[c.library_id], c.path)}.jpg"
+        for c in db.scalars(select(Course))
+        if c.library_id in lib_paths
+    }
+    for f in cdir.glob("*.jpg"):
+        if f.name not in keep:
+            try:
+                f.unlink()
+            except OSError:
+                pass
 
 
 def run_scan() -> dict:
@@ -171,6 +197,8 @@ def run_scan() -> dict:
                     _status["errors"].append({"library": lib.path, "error": repr(e)})
                 finally:
                     _status["librariesDone"] = i + 1
+
+            _cleanup_covers(db)
 
             _status["phase"] = "indexing"
             _status["current"] = None
