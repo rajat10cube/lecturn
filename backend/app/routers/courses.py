@@ -76,6 +76,7 @@ def list_courses(user: User = Depends(require_user), db: Session = Depends(get_d
             "lectureCount": c.lecture_count,
             "completedCount": completed_map.get(c.id, 0),
             "lastActivity": str(activity_map[c.id]) if activity_map.get(c.id) else None,
+            "createdAt": str(c.created_at) if c.created_at else None,
         }
         for c in rows
     ]

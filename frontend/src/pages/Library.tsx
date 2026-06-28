@@ -53,8 +53,12 @@ export default function Library() {
   const { data, isLoading, isError } = useQuery({ queryKey: ["courses"], queryFn: getCourses });
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
+  const [status, setStatus] = useState("all");
+  const [sort, setSort] = useState("title");
   const query = q.trim();
   const searching = query.length >= 2;
+  const selectCls =
+    "h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
   const { data: search } = useQuery({
     queryKey: ["search", query],
@@ -66,6 +70,24 @@ export default function Library() {
     () => (data?.courses ?? []).filter((c) => cat === "All" || c.category === cat),
     [data, cat],
   );
+
+  const view = useMemo(() => {
+    const list = browse.filter((c) => {
+      if (status === "all") return true;
+      const completed = c.lectureCount > 0 && c.completedCount === c.lectureCount;
+      const inProgress = !completed && (c.completedCount > 0 || !!c.lastActivity);
+      if (status === "completed") return completed;
+      if (status === "inprogress") return inProgress;
+      return !completed && !inProgress; // notstarted
+    });
+    const prog = (c: CourseCard) => (c.lectureCount ? c.completedCount / c.lectureCount : 0);
+    return [...list].sort((a, b) => {
+      if (sort === "title") return a.title.localeCompare(b.title);
+      if (sort === "watched") return (b.lastActivity ?? "").localeCompare(a.lastActivity ?? "");
+      if (sort === "added") return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+      return prog(b) - prog(a); // progress desc
+    });
+  }, [browse, status, sort]);
   const continueRow = useMemo(
     () =>
       (data?.courses ?? [])
@@ -149,7 +171,7 @@ export default function Library() {
             )}
 
             {data && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {["All", ...data.categories].map((c) => (
                   <Button
                     key={c}
@@ -160,6 +182,20 @@ export default function Library() {
                     {c}
                   </Button>
                 ))}
+                <div className="ml-auto flex items-center gap-2">
+                  <select className={selectCls} value={status} onChange={(e) => setStatus(e.target.value)}>
+                    <option value="all">All courses</option>
+                    <option value="inprogress">In progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="notstarted">Not started</option>
+                  </select>
+                  <select className={selectCls} value={sort} onChange={(e) => setSort(e.target.value)}>
+                    <option value="title">Sort: A–Z</option>
+                    <option value="watched">Sort: Recently watched</option>
+                    <option value="added">Sort: Recently added</option>
+                    <option value="progress">Sort: Progress</option>
+                  </select>
+                </div>
               </div>
             )}
 
@@ -174,9 +210,11 @@ export default function Library() {
                   <Link to="/settings">Add a library</Link>
                 </Button>
               </div>
+            ) : view.length === 0 ? (
+              <p className="py-10 text-center text-muted-foreground">No courses match these filters.</p>
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-                {browse.map((c) => <CourseCardView key={c.id} c={c} />)}
+                {view.map((c) => <CourseCardView key={c.id} c={c} />)}
               </div>
             )}
           </div>

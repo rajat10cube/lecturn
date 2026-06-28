@@ -17,6 +17,7 @@ export interface CourseCard {
   lectureCount: number;
   completedCount: number;
   lastActivity: string | null;
+  createdAt: string | null;
 }
 
 export interface LibraryResponse {
