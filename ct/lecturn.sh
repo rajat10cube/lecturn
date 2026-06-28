@@ -4,21 +4,39 @@
 # Run on the Proxmox host:
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/ct/lecturn.sh)"
 #
-# No arguments needed — it auto-picks the next CT ID and prompts for settings.
-# Every value can also be preset via env (CTID, CT_HOSTNAME, CORES, RAM_MB,
-# DISK_GB, STORAGE, BRIDGE, UNPRIVILEGED, MEDIA_HOST, LECTURN_AUTH_PASS).
+# Pick Default (presets + random password) or Advanced (set CT id, resources,
+# storage, etc.). Every value can also be preset via env (CTID, CT_HOSTNAME,
+# CORES, RAM_MB, DISK_GB, STORAGE, BRIDGE, UNPRIVILEGED, MEDIA_HOST,
+# LECTURN_AUTH_PASS) to run non-interactively.
 set -euo pipefail
 
 REPO="https://github.com/rajat10cube/lecturn"
 RAW="https://raw.githubusercontent.com/rajat10cube/lecturn/main"
 
-YW="\e[33m"; GN="\e[1;92m"; RD="\e[31m"; CL="\e[0m"
+YW="\e[33m"; GN="\e[1;92m"; RD="\e[31m"; BL="\e[36m"; CL="\e[0m"
 msg() { echo -e "${YW}[lecturn]${CL} $*"; }
 ok()  { echo -e "${GN}[lecturn]${CL} $*"; }
 die() { echo -e "${RD}[lecturn] $*${CL}" >&2; exit 1; }
 
+header() {
+  echo -e "${BL}"
+  cat <<'EOF'
+  _      ___ ___ _____ _   _ ___ _  _
+ | |    | __/ __|_   _| | | | _ \ \| |
+ | |__  | _| (__  | | | |_| |   / .` |
+ |____| |___\___| |_|  \___/|_|_\_|\_|
+        self-hosted course player
+EOF
+  echo -e "${CL}"
+}
+
 command -v pct >/dev/null || die "Run this on a Proxmox VE host (pct not found)."
 [ "$(id -u)" -eq 0 ] || die "Run as root."
+
+gen_pass() {
+  { openssl rand -base64 24 2>/dev/null || head -c 32 /dev/urandom | base64; } \
+    | tr -dc 'A-Za-z0-9' | head -c 16
+}
 
 pick_storage() { # $1 = content type (rootdir | vztmpl)
   local list
@@ -36,7 +54,7 @@ BRIDGE="${BRIDGE:-vmbr0}"
 UNPRIVILEGED="${UNPRIVILEGED:-1}"
 MEDIA_CT="${MEDIA_CT:-/libraries/courses}"
 MEDIA_HOST="${MEDIA_HOST:-}"
-LECTURN_AUTH_PASS="${LECTURN_AUTH_PASS:-change-me}"
+LECTURN_AUTH_PASS="${LECTURN_AUTH_PASS:-$(gen_pass)}"
 STORAGE="${STORAGE:-$(pick_storage rootdir)}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-$(pick_storage vztmpl)}"
 CTID="${CTID:-$(pvesh get /cluster/nextid 2>/dev/null || true)}"
@@ -44,19 +62,17 @@ CTID="${CTID:-$(pvesh get /cluster/nextid 2>/dev/null || true)}"
 [ -n "${STORAGE:-}" ] || die "no storage supporting container rootfs found (set STORAGE=)."
 [ -n "${CTID:-}" ] || die "could not determine a CT ID (set CTID=)."
 
-# --- interactive prompts (whiptail) when we have a TTY ---
+header
+
+# --- Default / Advanced (whiptail when we have a TTY) ---
 if [ -t 0 ] && command -v whiptail >/dev/null; then
-  if ! whiptail --title "Lecturn LXC" --yesno \
-"Create a Lecturn container with these defaults?\n
-  CT ID:        $CTID
-  Hostname:     $CT_HOSTNAME
-  Cores:        $CORES
-  RAM:          ${RAM_MB} MB
-  Disk:         ${DISK_GB} GB
-  Storage:      $STORAGE
-  Bridge:       $BRIDGE
-  Unprivileged: $([ "$UNPRIVILEGED" = 1 ] && echo yes || echo no)
-\nChoose <No> to edit these (Advanced)." 22 66; then
+  MODE=$(whiptail --title "Lecturn LXC" --menu \
+"How do you want to install Lecturn?" 13 64 2 \
+    "default"  "Presets + random password (quick)" \
+    "advanced" "Set CT id, resources, storage, password…" \
+    3>&1 1>&2 2>&3) || die "cancelled"
+
+  if [ "$MODE" = "advanced" ]; then
     CTID=$(whiptail --title "Advanced" --inputbox "Container ID" 8 60 "$CTID" 3>&1 1>&2 2>&3) || die "cancelled"
     CT_HOSTNAME=$(whiptail --title "Advanced" --inputbox "Hostname" 8 60 "$CT_HOSTNAME" 3>&1 1>&2 2>&3) || die "cancelled"
     CORES=$(whiptail --title "Advanced" --inputbox "CPU cores" 8 60 "$CORES" 3>&1 1>&2 2>&3) || die "cancelled"
@@ -66,14 +82,18 @@ if [ -t 0 ] && command -v whiptail >/dev/null; then
     BRIDGE=$(whiptail --title "Advanced" --inputbox "Network bridge" 8 60 "$BRIDGE" 3>&1 1>&2 2>&3) || die "cancelled"
     if whiptail --title "Privilege" --yesno "Unprivileged container? (recommended)\n\nChoose <No> only if your course files are not world-readable." 12 64; then
       UNPRIVILEGED=1; else UNPRIVILEGED=0; fi
-  fi
-  MEDIA_HOST=$(whiptail --title "Courses" --inputbox \
+    MEDIA_HOST=$(whiptail --title "Courses" --inputbox \
 "Path ON THIS PROXMOX HOST to your downloaded courses.
-It will be bind-mounted read-only at $MEDIA_CT.
-
-Leave blank to skip and add it later." 12 72 "$MEDIA_HOST" 3>&1 1>&2 2>&3) || MEDIA_HOST=""
-  LECTURN_AUTH_PASS=$(whiptail --title "Password" --passwordbox \
-"Admin password for Lecturn (login user: admin)" 8 60 "$LECTURN_AUTH_PASS" 3>&1 1>&2 2>&3) || LECTURN_AUTH_PASS="change-me"
+Bind-mounted read-only at $MEDIA_CT. Leave blank to add later." 11 72 "$MEDIA_HOST" 3>&1 1>&2 2>&3) || MEDIA_HOST=""
+    LECTURN_AUTH_PASS=$(whiptail --title "Password" --passwordbox \
+"Admin password (login user: admin)" 8 60 "$LECTURN_AUTH_PASS" 3>&1 1>&2 2>&3) || die "cancelled"
+  fi
+  whiptail --title "Confirm" --yesno \
+"Create CT $CTID ($CT_HOSTNAME)?\n
+  Cores: $CORES   RAM: ${RAM_MB}MB   Disk: ${DISK_GB}GB
+  Storage: $STORAGE   Bridge: $BRIDGE
+  Unprivileged: $([ "$UNPRIVILEGED" = 1 ] && echo yes || echo no)
+  Courses: ${MEDIA_HOST:-<none — mount later>}" 16 64 || die "cancelled"
 else
   msg "Non-interactive — using defaults/env (CTID=$CTID, storage=$STORAGE)."
 fi
@@ -118,8 +138,13 @@ pct exec "$CTID" -- env \
   bash /root/lecturn-install.sh
 
 IP=$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}')
-ok "Done!  Lecturn → http://${IP:-<ct-ip>}:8000   (login: admin / $LECTURN_AUTH_PASS)"
-if [ "$UNPRIVILEGED" = "1" ] && [ -n "$MEDIA_HOST" ]; then
-  msg "If courses don't appear: 'chmod -R o+rX $MEDIA_HOST' on the host (unprivileged"
-  msg "containers need the files readable by the mapped UID), then: pct exec $CTID -- systemctl restart lecturn"
+echo
+ok "Done!  Lecturn → http://${IP:-<ct-ip>}:8000"
+ok "Login:  admin / $LECTURN_AUTH_PASS"
+if [ -z "$MEDIA_HOST" ]; then
+  echo
+  msg "No courses mounted yet. Put them on this host, then:"
+  msg "  pct set $CTID -mp0 /your/host/path,mp=$MEDIA_CT,ro=1 && pct reboot $CTID"
+elif [ "$UNPRIVILEGED" = "1" ]; then
+  msg "If courses don't appear (unprivileged perms): chmod -R o+rX '$MEDIA_HOST' on the host, then: pct reboot $CTID"
 fi

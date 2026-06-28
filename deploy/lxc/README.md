@@ -77,11 +77,30 @@ curl -u admin:PASS -X POST http://<ip>:8000/api/admin/rescan
 
 Put it behind your reverse proxy as usual — see [../../docs/DEPLOY.md](../../docs/DEPLOY.md).
 
-## Updating
+## Install modes (interactive)
+The one-liner shows a **Default / Advanced** menu:
+- **Default** — sensible presets (2 cores / 2 GB / 10 GB, auto storage,
+  unprivileged) and a **randomly generated admin password** (printed at the end).
+- **Advanced** — set CT ID, hostname, cores, RAM, disk, storage, bridge,
+  privileged/unprivileged, courses path, and password.
+
+Your library config + password live in `/opt/lecturn-data` (outside the app dir),
+so updates never reset them.
+
+## Update
+Re-fetches the app and rebuilds; data/config/password are preserved.
 ```bash
-# if installed from git:
-pct exec 120 -- bash -c 'cd /opt/lecturn && git pull && \
-  LECTURN_REPO= bash /root/lecturn-install.sh && systemctl restart lecturn'
+pct exec <CTID> -- bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/deploy/lxc/update.sh)"
+```
+
+## Uninstall
+```bash
+# remove the app, keep your data:
+pct exec <CTID> -- bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/deploy/lxc/uninstall.sh)"
+# also delete data + service user:
+pct exec <CTID> -- bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/deploy/lxc/uninstall.sh)" lecturn --purge
+# or remove the whole container from the host:
+pct stop <CTID> && pct destroy <CTID>
 ```
 
 ## Manual install (existing container)
