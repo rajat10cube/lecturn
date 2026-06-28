@@ -302,12 +302,17 @@ function LibrariesTab() {
     qc.invalidateQueries({ queryKey: ["courses"] });
   };
 
+  // only surface errors for libraries that still exist (hide stale ones, e.g. a removed "/")
+  const livePaths = new Set((libs ?? []).map((l) => l.path));
+  const visibleErrors = (scan?.errors ?? []).filter((e) => livePaths.has(e.library));
+
   // when a scan finishes, refresh data and report the result
   const wasRunning = useRef(false);
   useEffect(() => {
     if (wasRunning.current && scan && !scan.running) {
       refresh();
-      if (scan.errors?.length) toast.error(`Scan finished with ${scan.errors.length} issue(s) — see below`);
+      const errs = (scan.errors ?? []).filter((e) => (libs ?? []).some((l) => l.path === e.library));
+      if (errs.length) toast.error(`Scan finished with ${errs.length} issue(s) — see below`);
       else toast.success(`Scan complete — ${scan.courses} courses, ${scan.lectures} lectures`);
     }
     wasRunning.current = !!scan?.running;
@@ -362,7 +367,7 @@ function LibrariesTab() {
           )}
         </div>
 
-        {scan?.running && (
+        {scan?.running ? (
           <div className="rounded-lg border bg-muted/40 p-3 text-sm">
             <div className="mb-2 flex items-center justify-between gap-2">
               <span className="truncate">
@@ -379,14 +384,21 @@ function LibrariesTab() {
               />
             </div>
           </div>
+        ) : (
+          scan?.finished != null && (
+            <p className="text-sm text-muted-foreground">
+              Last scan: {scan.courses} courses · {scan.lectures} lectures
+              {visibleErrors.length > 0 && ` · ${visibleErrors.length} issue(s)`}
+            </p>
+          )
         )}
 
-        {scan && !scan.running && scan.errors?.length > 0 && (
+        {!scan?.running && visibleErrors.length > 0 && (
           <div className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
             <div className="flex items-center gap-2 font-medium text-destructive">
               <AlertTriangle className="size-4" /> Last scan had issues
             </div>
-            {scan.errors.map((e, i) => (
+            {visibleErrors.map((e, i) => (
               <div key={i} className="text-muted-foreground">
                 <span className="font-mono text-foreground">{e.library}</span> — {e.error}
               </div>
