@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Folder, FolderUp, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, Folder, FolderUp, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import AppHeader from "@/components/AppHeader";
@@ -38,6 +38,7 @@ import {
   deleteLibrary,
   deleteUser,
   getLibraries,
+  getScanStatus,
   getUsers,
   rescanAll,
   resetUserPassword,
@@ -47,6 +48,7 @@ import {
   type UserRow,
 } from "@/api";
 import { useAuth } from "@/auth";
+import { cn } from "@/lib/utils";
 
 const DESTRUCTIVE = "bg-destructive text-destructive-foreground hover:bg-destructive/90";
 const errMsg = (e: unknown) => String((e as Error).message);
@@ -290,10 +292,30 @@ function UserRowItem({ user, libs, onChanged }: { user: UserRow; libs: LibraryIt
 function LibrariesTab() {
   const qc = useQueryClient();
   const { data: libs } = useQuery({ queryKey: ["libraries"], queryFn: getLibraries });
+  const { data: scan } = useQuery({
+    queryKey: ["scan-status"],
+    queryFn: getScanStatus,
+    refetchInterval: (q) => (q.state.data?.running ? 800 : 4000),
+  });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["libraries"] });
     qc.invalidateQueries({ queryKey: ["courses"] });
   };
+
+  // when a scan finishes, refresh data and report the result
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && scan && !scan.running) {
+      refresh();
+      if (scan.errors?.length) toast.error(`Scan finished with ${scan.errors.length} issue(s) — see below`);
+      else toast.success(`Scan complete — ${scan.courses} courses, ${scan.lectures} lectures`);
+    }
+    wasRunning.current = !!scan?.running;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scan?.running]);
+
+  const scanPct =
+    scan && scan.librariesTotal > 0 ? Math.round((scan.librariesDone / scan.librariesTotal) * 100) : 0;
 
   const [path, setPath] = useState("/");
   const [name, setName] = useState("");
@@ -339,6 +361,39 @@ function LibrariesTab() {
             <p className="px-4 py-3 text-sm text-muted-foreground">No libraries yet — add one below.</p>
           )}
         </div>
+
+        {scan?.running && (
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="truncate">
+                {scan.phase === "indexing" ? "Indexing…" : `Scanning ${scan.current ?? "…"}`}
+              </span>
+              <span className="shrink-0 text-muted-foreground">
+                {scan.librariesDone}/{scan.librariesTotal} · {scan.courses} courses · {scan.lectures} lectures
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn("h-full bg-primary transition-all", scan.phase === "indexing" && "animate-pulse")}
+                style={{ width: `${scan.phase === "indexing" ? 100 : scanPct}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {scan && !scan.running && scan.errors?.length > 0 && (
+          <div className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+            <div className="flex items-center gap-2 font-medium text-destructive">
+              <AlertTriangle className="size-4" /> Last scan had issues
+            </div>
+            {scan.errors.map((e, i) => (
+              <div key={i} className="text-muted-foreground">
+                <span className="font-mono text-foreground">{e.library}</span> — {e.error}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-end gap-3 border-t pt-4">
           <div className="min-w-[240px] flex-1 space-y-1.5">
             <Label>Path (inside the container)</Label>

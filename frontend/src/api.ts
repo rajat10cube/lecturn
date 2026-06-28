@@ -241,6 +241,20 @@ export async function rescanAll(): Promise<void> {
   await fetch(`${BASE}/admin/rescan`, { method: "POST", credentials: "include" });
 }
 
+export interface ScanStatus {
+  running: boolean;
+  phase: string;
+  librariesTotal: number;
+  librariesDone: number;
+  current: string | null;
+  courses: number;
+  lectures: number;
+  errors: { library: string; error: string }[];
+  finished: number | null;
+}
+
+export const getScanStatus = () => getJSON<ScanStatus>("/admin/scan-status");
+
 export async function putProgress(lectureId: number, body: ProgressIn): Promise<void> {
   await fetch(`${BASE}/progress/${lectureId}`, {
     method: "PUT",
