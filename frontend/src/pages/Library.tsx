@@ -1,51 +1,148 @@
-import { useQuery } from "@tanstack/react-query";
-import { Library as LibraryIcon, Search } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, Library as LibraryIcon, MoreVertical, RotateCcw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
 import AppHeader from "@/components/AppHeader";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { getCourses, getSearch, type CourseCard } from "@/api";
+import { completeCourse, getCourses, getSearch, resetCourseProgress, type CourseCard } from "@/api";
 
 function pct(c: CourseCard) {
   return c.lectureCount ? Math.round((c.completedCount / c.lectureCount) * 100) : 0;
 }
 
+function CourseMenu({ c }: { c: CourseCard }) {
+  const qc = useQueryClient();
+  const [confirmReset, setConfirmReset] = useState(false);
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["courses"] });
+
+  const reset = useMutation({
+    mutationFn: () => resetCourseProgress(c.slug),
+    onSuccess: () => {
+      invalidate();
+      toast.success(`Reset progress for “${c.title}”`);
+    },
+    onError: () => toast.error("Couldn’t reset progress"),
+  });
+  const complete = useMutation({
+    mutationFn: () => completeCourse(c.slug),
+    onSuccess: () => {
+      invalidate();
+      toast.success(`Marked “${c.title}” complete`);
+    },
+    onError: () => toast.error("Couldn’t update course"),
+  });
+
+  const hasProgress = c.completedCount > 0 || !!c.lastActivity;
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Course options"
+            className="size-8 bg-black/50 text-white opacity-0 backdrop-blur transition hover:bg-black/70 hover:text-white focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+            onClick={(e) => e.preventDefault()}
+          >
+            <MoreVertical className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => complete.mutate()}>
+            <Check /> Mark all complete
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            disabled={!hasProgress}
+            onSelect={() => setConfirmReset(true)}
+          >
+            <RotateCcw /> Reset progress
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={confirmReset} onOpenChange={setConfirmReset}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset progress?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This clears your watch position and completion for every lecture in “{c.title}”. It can’t be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => reset.mutate()}
+            >
+              Reset progress
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 function CourseCardView({ c }: { c: CourseCard }) {
   const p = pct(c);
   return (
-    <Link
-      to={`/course/${encodeURIComponent(c.slug)}`}
-      className="group overflow-hidden rounded-lg border bg-card transition hover:border-primary/50 hover:shadow-md"
-    >
-      <div className="relative aspect-video bg-muted">
-        {c.cover ? (
-          <img src={c.cover} alt="" loading="lazy" className="h-full w-full object-cover" />
-        ) : (
-          <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted to-accent text-muted-foreground">
-            <LibraryIcon className="size-7 opacity-40" />
-          </div>
-        )}
-        {c.category && (
-          <Badge variant="muted" className="absolute left-2 top-2 bg-black/60 text-white backdrop-blur">
-            {c.category}
-          </Badge>
-        )}
-        {c.completedCount > 0 && (
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-black/30">
-            <div className="h-full bg-primary" style={{ width: `${p}%` }} />
-          </div>
-        )}
+    <div className="group relative overflow-hidden rounded-lg border bg-card transition hover:border-primary/50 hover:shadow-md">
+      <div className="absolute right-2 top-2 z-10">
+        <CourseMenu c={c} />
       </div>
-      <div className="p-3">
-        <div className="line-clamp-2 font-medium leading-snug">{c.title}</div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          {c.completedCount > 0 ? `${c.completedCount}/${c.lectureCount} · ${p}%` : `${c.lectureCount} lectures`}
+      <Link to={`/course/${encodeURIComponent(c.slug)}`} className="block">
+        <div className="relative aspect-video bg-muted">
+          {c.cover ? (
+            <img src={c.cover} alt="" loading="lazy" className="h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted to-accent text-muted-foreground">
+              <LibraryIcon className="size-7 opacity-40" />
+            </div>
+          )}
+          {c.category && (
+            <Badge variant="muted" className="absolute left-2 top-2 bg-black/60 text-white backdrop-blur">
+              {c.category}
+            </Badge>
+          )}
+          {c.completedCount > 0 && (
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-black/30">
+              <div className="h-full bg-primary" style={{ width: `${p}%` }} />
+            </div>
+          )}
         </div>
-      </div>
-    </Link>
+        <div className="p-3">
+          <div className="line-clamp-2 font-medium leading-snug">{c.title}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {c.completedCount > 0 ? `${c.completedCount}/${c.lectureCount} · ${p}%` : `${c.lectureCount} lectures`}
+          </div>
+        </div>
+      </Link>
+    </div>
   );
 }
 

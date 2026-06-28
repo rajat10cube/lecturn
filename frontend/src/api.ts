@@ -265,6 +265,22 @@ export async function putProgress(lectureId: number, body: ProgressIn): Promise<
   });
 }
 
+export async function resetCourseProgress(slug: string): Promise<void> {
+  const res = await fetch(`${BASE}/progress/course/${encodeURIComponent(slug)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`reset failed (${res.status})`);
+}
+
+export async function completeCourse(slug: string): Promise<void> {
+  const res = await fetch(`${BASE}/progress/course/${encodeURIComponent(slug)}/complete`, {
+    method: "PUT",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`complete failed (${res.status})`);
+}
+
 export interface NoteItem {
   id: number;
   positionSec: number;

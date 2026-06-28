@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -15,10 +15,15 @@ vi.mock("@/components/AppHeader", () => ({
 
 const getCourses = vi.fn<[], Promise<LibraryResponse>>();
 const getSearch = vi.fn();
+const resetCourseProgress = vi.fn<[string], Promise<void>>();
+const completeCourse = vi.fn<[string], Promise<void>>();
 vi.mock("@/api", () => ({
   getCourses: () => getCourses(),
   getSearch: (q: string) => getSearch(q),
+  resetCourseProgress: (slug: string) => resetCourseProgress(slug),
+  completeCourse: (slug: string) => completeCourse(slug),
 }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import Library from "@/pages/Library";
 
@@ -51,6 +56,8 @@ function renderLibrary() {
 beforeEach(() => {
   getCourses.mockReset();
   getSearch.mockReset();
+  resetCourseProgress.mockReset().mockResolvedValue();
+  completeCourse.mockReset().mockResolvedValue();
   getSearch.mockResolvedValue({ results: [] });
 });
 
@@ -87,6 +94,39 @@ describe("Library page", () => {
 
     expect(screen.queryByText("Udemy Course")).not.toBeInTheDocument();
     expect(screen.getByText("Skillshare Course")).toBeInTheDocument();
+  });
+
+  it("resets a course's progress from the options menu (with confirmation)", async () => {
+    getCourses.mockResolvedValue({
+      courses: [card({ slug: "ue5", title: "Unreal Engine 5", completedCount: 2 })],
+      categories: [],
+    });
+    renderLibrary();
+    await screen.findByText("Unreal Engine 5");
+
+    await userEvent.click(screen.getByRole("button", { name: /course options/i }));
+    await userEvent.click(await screen.findByText("Reset progress"));
+
+    // confirm dialog gates the destructive action
+    expect(resetCourseProgress).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("alertdialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: /reset progress/i }));
+
+    await waitFor(() => expect(resetCourseProgress).toHaveBeenCalledWith("ue5"));
+  });
+
+  it("marks a whole course complete from the options menu", async () => {
+    getCourses.mockResolvedValue({
+      courses: [card({ slug: "blender", title: "Blender Basics" })],
+      categories: [],
+    });
+    renderLibrary();
+    await screen.findByText("Blender Basics");
+
+    await userEvent.click(screen.getByRole("button", { name: /course options/i }));
+    await userEvent.click(await screen.findByText("Mark all complete"));
+
+    await waitFor(() => expect(completeCourse).toHaveBeenCalledWith("blender"));
   });
 
   it("filters by completion status", async () => {
