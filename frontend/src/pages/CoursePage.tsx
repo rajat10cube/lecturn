@@ -172,9 +172,9 @@ export default function CoursePage() {
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[340px_1fr]">
         {/* curriculum — title/progress pinned, lecture list scrolls */}
         <aside className="flex min-h-0 flex-col border-b md:border-b-0 md:border-r">
-          <div className="border-b p-4">
-            <h1 className="text-lg font-semibold leading-tight">{data.title}</h1>
-            {data.category && <Badge variant="muted" className="mt-2">{data.category}</Badge>}
+          <div className="border-b px-4 py-5">
+            <h1 className="text-xl font-bold leading-snug tracking-tight">{data.title}</h1>
+            {data.category && <Badge variant="muted" className="mt-2.5">{data.category}</Badge>}
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full bg-primary transition-all" style={{ width: `${coursePct}%` }} />
             </div>
