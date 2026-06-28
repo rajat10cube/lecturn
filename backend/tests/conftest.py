@@ -13,3 +13,4 @@ os.environ.setdefault("LECTURN_AUTH", "basic")
 os.environ.setdefault("LECTURN_AUTH_USER", "admin")
 os.environ.setdefault("LECTURN_AUTH_PASS", "change-me")
 os.environ.setdefault("LECTURN_SCAN_ON_START", "false")
+os.environ.setdefault("LECTURN_MIN_VIDEO_BYTES", "1000")  # tiny test videos still count
