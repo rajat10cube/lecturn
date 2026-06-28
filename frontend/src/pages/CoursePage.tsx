@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, FileText, Music, Paperclip, PlayCircle } from "lucide-react";
+import { Check, ChevronRight, FileText, Music, Paperclip, PlayCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import AppHeader from "@/components/AppHeader";
 import Player from "@/components/Player";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getCourse, putProgress, type LectureItem } from "@/api";
 
@@ -14,10 +15,11 @@ interface Prog {
   completed: boolean;
 }
 
-function KindIcon({ kind }: { kind: string }) {
-  if (kind === "document") return <FileText className="size-4 shrink-0" />;
-  if (kind === "audio") return <Music className="size-4 shrink-0" />;
-  return <PlayCircle className="size-4 shrink-0" />;
+function KindIcon({ kind, className }: { kind: string; className?: string }) {
+  const c = cn("size-4 shrink-0", className);
+  if (kind === "document") return <FileText className={c} />;
+  if (kind === "audio") return <Music className={c} />;
+  return <PlayCircle className={c} />;
 }
 
 export default function CoursePage() {
@@ -52,6 +54,7 @@ export default function CoursePage() {
   }, [data, deepLinkId, flat]);
 
   const current = flat.find((l) => l.id === currentId) ?? null;
+  const idx = current ? flat.findIndex((l) => l.id === current.id) : -1;
 
   const report = (lecId: number, pos: number, dur: number, ended: boolean) => {
     const now = Date.now();
@@ -71,24 +74,16 @@ export default function CoursePage() {
   };
 
   const playNext = () => {
-    if (!current) return;
-    const idx = flat.findIndex((l) => l.id === current.id);
     if (idx >= 0 && idx + 1 < flat.length) setCurrentId(flat[idx + 1].id);
   };
 
-  if (isLoading) {
+  if (isLoading || isError || !data) {
     return (
-      <div className="min-h-screen">
+      <div className="flex h-screen flex-col overflow-hidden">
         <AppHeader />
-        <p className="container py-6 text-muted-foreground">Loading…</p>
-      </div>
-    );
-  }
-  if (isError || !data) {
-    return (
-      <div className="min-h-screen">
-        <AppHeader />
-        <p className="container py-6 text-destructive">Course not found.</p>
+        <p className={cn("container py-6", isError ? "text-destructive" : "text-muted-foreground")}>
+          {isError ? "Course not found." : "Loading…"}
+        </p>
       </div>
     );
   }
@@ -99,26 +94,26 @@ export default function CoursePage() {
   const startPosition = curProg && !curProg.completed ? curProg.positionSec : 0;
 
   return (
-    <div className="min-h-screen">
+    <div className="flex flex-col md:h-screen md:overflow-hidden">
       <AppHeader />
-      <div className="container grid gap-6 py-6 md:grid-cols-[330px_1fr]">
-        <aside className="md:sticky md:top-20 md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
-          <h1 className="text-xl font-semibold leading-tight">{data.title}</h1>
-          {data.category && <Badge variant="muted" className="mt-2">{data.category}</Badge>}
-
-          <div className="mt-3">
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-              <div className="h-full bg-primary" style={{ width: `${coursePct}%` }} />
+      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[340px_1fr]">
+        {/* curriculum — title/progress pinned, lecture list scrolls */}
+        <aside className="flex min-h-0 flex-col border-b md:border-b-0 md:border-r">
+          <div className="border-b p-4">
+            <h1 className="text-lg font-semibold leading-tight">{data.title}</h1>
+            {data.category && <Badge variant="muted" className="mt-2">{data.category}</Badge>}
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full bg-primary transition-all" style={{ width: `${coursePct}%` }} />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {completedCount}/{data.lectureCount} · {coursePct}%
             </p>
           </div>
 
-          <div className="mt-5 space-y-5">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
             {data.sections.map((s) => (
               <div key={s.id}>
-                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   {s.title}
                 </div>
                 <ul className="space-y-0.5">
@@ -135,9 +130,9 @@ export default function CoursePage() {
                           )}
                         >
                           {p?.completed ? (
-                            <Check className={cn("size-4 shrink-0", active ? "" : "text-primary")} />
+                            <Check className={cn("size-4 shrink-0", !active && "text-primary")} />
                           ) : (
-                            <KindIcon kind={l.kind} />
+                            <KindIcon kind={l.kind} className={cn(!active && "text-muted-foreground")} />
                           )}
                           <span className="truncate">{l.title}</span>
                         </button>
@@ -150,7 +145,7 @@ export default function CoursePage() {
 
             {data.attachments.length > 0 && (
               <div>
-                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Resources
                 </div>
                 <ul className="space-y-0.5">
@@ -165,21 +160,34 @@ export default function CoursePage() {
           </div>
         </aside>
 
-        <main>
-          {current ? (
-            <>
-              <Player
-                key={current.id}
-                lecture={current}
-                startPosition={startPosition}
-                onProgress={(pos, dur, ended) => report(current.id, pos, dur, ended)}
-                onEnded={playNext}
-              />
-              <h2 className="mt-4 text-lg font-medium">{current.title}</h2>
-            </>
-          ) : (
-            <p className="text-muted-foreground">Select a lecture to begin.</p>
-          )}
+        {/* stage */}
+        <main className="min-h-0 overflow-y-auto">
+          <div className="mx-auto max-w-5xl p-4 md:p-6">
+            {current ? (
+              <>
+                <Player
+                  key={current.id}
+                  lecture={current}
+                  startPosition={startPosition}
+                  onProgress={(pos, dur, ended) => report(current.id, pos, dur, ended)}
+                  onEnded={playNext}
+                />
+                <div className="mt-4 flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-medium">{current.title}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Lecture {idx + 1} of {flat.length}
+                    </p>
+                  </div>
+                  <Button variant="secondary" onClick={playNext} disabled={idx < 0 || idx + 1 >= flat.length}>
+                    Next <ChevronRight />
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground">Select a lecture to begin.</p>
+            )}
+          </div>
         </main>
       </div>
     </div>
