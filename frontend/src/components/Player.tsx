@@ -2,7 +2,10 @@ import mpegts from "mpegts.js";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { readPrefs, writePrefs } from "@/lib/prefs";
 import type { LectureItem } from "@/api";
+
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 export default function Player({
   lecture,
@@ -20,6 +23,13 @@ export default function Player({
   const ref = useRef<HTMLVideoElement>(null);
   const lastTick = useRef(0);
   const [err, setErr] = useState(false);
+  const [rate, setRate] = useState(() => readPrefs().rate);
+
+  const changeRate = (r: number) => {
+    setRate(r);
+    writePrefs({ rate: r });
+    if (ref.current) ref.current.playbackRate = r;
+  };
 
   // keyboard shortcuts (ignored while typing in a field)
   useEffect(() => {
@@ -94,6 +104,7 @@ export default function Player({
   const handleLoaded = () => {
     const v = ref.current;
     if (!v) return;
+    v.playbackRate = rate;
     if (startPosition > 2 && (!v.duration || startPosition < v.duration - 1)) {
       try {
         v.currentTime = startPosition;
@@ -151,21 +162,35 @@ export default function Player({
   }
 
   return (
-    <video
-      ref={ref}
-      className="aspect-video w-full rounded-lg border bg-black"
-      controls
-      autoPlay
-      onLoadedMetadata={handleLoaded}
-      onTimeUpdate={handleTime}
-      onPause={flush}
-      onSeeked={flush}
-      onEnded={handleEnded}
-      onError={() => setErr(true)}
-    >
-      {lecture.subtitle && (
-        <track default kind="subtitles" src={lecture.subtitle} srcLang="en" label="English" />
-      )}
-    </video>
+    <div className="space-y-2">
+      <video
+        ref={ref}
+        className="aspect-video w-full rounded-lg border bg-black"
+        controls
+        autoPlay
+        onLoadedMetadata={handleLoaded}
+        onTimeUpdate={handleTime}
+        onPause={flush}
+        onSeeked={flush}
+        onEnded={handleEnded}
+        onError={() => setErr(true)}
+      >
+        {lecture.subtitle && (
+          <track default kind="subtitles" src={lecture.subtitle} srcLang="en" label="English" />
+        )}
+      </video>
+      <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
+        <span>Speed</span>
+        <select
+          value={rate}
+          onChange={(e) => changeRate(Number(e.target.value))}
+          className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {SPEEDS.map((r) => (
+            <option key={r} value={r}>{r}×</option>
+          ))}
+        </select>
+      </div>
+    </div>
   );
 }
