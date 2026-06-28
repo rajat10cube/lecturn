@@ -58,6 +58,14 @@ export default function CoursePage() {
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const lastPut = useRef<{ id: number; t: number }>({ id: -1, t: 0 });
   const activeRef = useRef<HTMLButtonElement>(null);
+  const didInit = useRef(false);
+
+  // reset per-course state when navigating between courses
+  useEffect(() => {
+    didInit.current = false;
+    setCurrentId(null);
+    setCollapsed(new Set());
+  }, [slug]);
   const toggleSection = (id: number) =>
     setCollapsed((prev) => {
       const n = new Set(prev);
@@ -72,11 +80,16 @@ export default function CoursePage() {
     for (const s of data.sections)
       for (const l of s.lectures) map[l.id] = { positionSec: l.positionSec, completed: l.completed };
     setProgress(map);
+
+    if (didInit.current) return;
+    didInit.current = true;
     const deepId = deepLinkId ? Number(deepLinkId) : null;
     const valid = deepId && flat.some((l) => l.id === deepId) ? deepId : null;
-    setCurrentId(
-      (prev) => prev ?? valid ?? data.resumeLectureId ?? data.sections[0]?.lectures[0]?.id ?? null,
-    );
+    const initId = valid ?? data.resumeLectureId ?? data.sections[0]?.lectures[0]?.id ?? null;
+    setCurrentId(initId);
+    // start with only the playing lecture's section expanded
+    const activeSec = data.sections.find((s) => s.lectures.some((l) => l.id === initId));
+    setCollapsed(new Set(data.sections.filter((s) => s.id !== activeSec?.id).map((s) => s.id)));
   }, [data, deepLinkId, flat]);
 
   const current = flat.find((l) => l.id === currentId) ?? null;
