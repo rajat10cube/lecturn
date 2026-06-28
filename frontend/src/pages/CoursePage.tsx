@@ -1,20 +1,30 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, FileText, Music, Paperclip, PlayCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 
-import { getCourse, putProgress, type LectureItem } from "../api";
-import Player from "../components/Player";
+import AppHeader from "@/components/AppHeader";
+import Player from "@/components/Player";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { getCourse, putProgress, type LectureItem } from "@/api";
 
 interface Prog {
   positionSec: number;
   completed: boolean;
 }
 
+function KindIcon({ kind }: { kind: string }) {
+  if (kind === "document") return <FileText className="size-4 shrink-0" />;
+  if (kind === "audio") return <Music className="size-4 shrink-0" />;
+  return <PlayCircle className="size-4 shrink-0" />;
+}
+
 export default function CoursePage() {
   const { slug = "" } = useParams();
   const [searchParams] = useSearchParams();
   const deepLinkId = searchParams.get("lecture");
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["course", slug],
     queryFn: () => getCourse(slug),
@@ -24,7 +34,6 @@ export default function CoursePage() {
     () => (data ? data.sections.flatMap((s) => s.lectures) : []),
     [data],
   );
-
   const [progress, setProgress] = useState<Record<number, Prog>>({});
   const [currentId, setCurrentId] = useState<number | null>(null);
   const lastPut = useRef<{ id: number; t: number }>({ id: -1, t: 0 });
@@ -58,7 +67,7 @@ export default function CoursePage() {
       const completed = p[lecId]?.completed || ended || (dur > 0 && pos / dur >= 0.9);
       return { ...p, [lecId]: { positionSec: pos, completed } };
     });
-    if (ended) queryClient.invalidateQueries({ queryKey: ["courses"] });
+    if (ended) qc.invalidateQueries({ queryKey: ["courses"] });
   };
 
   const playNext = () => {
@@ -67,71 +76,112 @@ export default function CoursePage() {
     if (idx >= 0 && idx + 1 < flat.length) setCurrentId(flat[idx + 1].id);
   };
 
-  if (isLoading) return <p className="note">Loading…</p>;
-  if (isError || !data) return <p className="note bad">Course not found.</p>;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen">
+        <AppHeader />
+        <p className="container py-6 text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
+  if (isError || !data) {
+    return (
+      <div className="min-h-screen">
+        <AppHeader />
+        <p className="container py-6 text-destructive">Course not found.</p>
+      </div>
+    );
+  }
 
   const completedCount = Object.values(progress).filter((p) => p.completed).length;
-  const pct = data.lectureCount ? Math.round((completedCount / data.lectureCount) * 100) : 0;
+  const coursePct = data.lectureCount ? Math.round((completedCount / data.lectureCount) * 100) : 0;
   const curProg = current ? progress[current.id] : undefined;
   const startPosition = curProg && !curProg.completed ? curProg.positionSec : 0;
 
   return (
-    <div className="course">
-      <aside className="sidebar">
-        <Link to="/" className="back">← Library</Link>
-        <h2 className="course-title">{data.title}</h2>
-        {data.category && <div className="course-cat">{data.category}</div>}
-        <div className="course-prog">
-          <div className="progress"><i style={{ width: `${pct}%` }} /></div>
-          <span>{completedCount}/{data.lectureCount} · {pct}%</span>
-        </div>
+    <div className="min-h-screen">
+      <AppHeader />
+      <div className="container grid gap-6 py-6 md:grid-cols-[330px_1fr]">
+        <aside className="md:sticky md:top-20 md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
+          <h1 className="text-xl font-semibold leading-tight">{data.title}</h1>
+          {data.category && <Badge variant="muted" className="mt-2">{data.category}</Badge>}
 
-        {data.sections.map((s) => (
-          <div key={s.id} className="sec">
-            <div className="sec-title">{s.title}</div>
-            {s.lectures.map((l) => {
-              const p = progress[l.id];
-              const state = p?.completed ? "done" : p && p.positionSec > 2 ? "partial" : "";
-              return (
-                <button
-                  key={l.id}
-                  className={`lec ${l.id === currentId ? "active" : ""}`}
-                  onClick={() => setCurrentId(l.id)}
-                >
-                  <span className={`mark ${state}`}>{p?.completed ? "✓" : ""}</span>
-                  <span className="lec-title">{l.title}</span>
-                </button>
-              );
-            })}
+          <div className="mt-3">
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full bg-primary" style={{ width: `${coursePct}%` }} />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {completedCount}/{data.lectureCount} · {coursePct}%
+            </p>
           </div>
-        ))}
 
-        {data.attachments.length > 0 && (
-          <div className="sec">
-            <div className="sec-title">Resources</div>
-            {data.attachments.map((a) => (
-              <div key={a.id} className="lec res">{a.title}</div>
+          <div className="mt-5 space-y-5">
+            {data.sections.map((s) => (
+              <div key={s.id}>
+                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {s.title}
+                </div>
+                <ul className="space-y-0.5">
+                  {s.lectures.map((l) => {
+                    const p = progress[l.id];
+                    const active = l.id === currentId;
+                    return (
+                      <li key={l.id}>
+                        <button
+                          onClick={() => setCurrentId(l.id)}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                            active ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+                          )}
+                        >
+                          {p?.completed ? (
+                            <Check className={cn("size-4 shrink-0", active ? "" : "text-primary")} />
+                          ) : (
+                            <KindIcon kind={l.kind} />
+                          )}
+                          <span className="truncate">{l.title}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             ))}
-          </div>
-        )}
-      </aside>
 
-      <main className="stage">
-        {current ? (
-          <>
-            <Player
-              key={current.id}
-              lecture={current}
-              startPosition={startPosition}
-              onProgress={(pos, dur, ended) => report(current.id, pos, dur, ended)}
-              onEnded={playNext}
-            />
-            <h3 className="now">{current.title}</h3>
-          </>
-        ) : (
-          <p className="note">Select a lecture to begin.</p>
-        )}
-      </main>
+            {data.attachments.length > 0 && (
+              <div>
+                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Resources
+                </div>
+                <ul className="space-y-0.5">
+                  {data.attachments.map((a) => (
+                    <li key={a.id} className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
+                      <Paperclip className="size-4 shrink-0" /> <span className="truncate">{a.title}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <main>
+          {current ? (
+            <>
+              <Player
+                key={current.id}
+                lecture={current}
+                startPosition={startPosition}
+                onProgress={(pos, dur, ended) => report(current.id, pos, dur, ended)}
+                onEnded={playNext}
+              />
+              <h2 className="mt-4 text-lg font-medium">{current.title}</h2>
+            </>
+          ) : (
+            <p className="text-muted-foreground">Select a lecture to begin.</p>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

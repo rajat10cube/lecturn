@@ -1,7 +1,35 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Folder, FolderUp, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
+import AppHeader from "@/components/AppHeader";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   addLibrary,
   browse,
@@ -17,325 +45,404 @@ import {
   type BrowseResult,
   type LibraryItem,
   type UserRow,
-} from "../api";
-import { useAuth } from "../auth";
+} from "@/api";
+import { useAuth } from "@/auth";
+
+const DESTRUCTIVE = "bg-destructive text-destructive-foreground hover:bg-destructive/90";
+const errMsg = (e: unknown) => String((e as Error).message);
 
 export default function Settings() {
-  const { isAdmin, authDisabled, signOut } = useAuth();
+  const { isAdmin } = useAuth();
   return (
-    <div className="page">
-      <header className="topbar">
-        <Link to="/" className="brand">Lecturn</Link>
-        <Link to="/" className="chip">← Library</Link>
-        <button className="chip" onClick={() => void signOut()}>Logout</button>
-      </header>
-
-      {!authDisabled && <AccountSection />}
-      {isAdmin && <UsersSection />}
-      {isAdmin && <LibrariesSection />}
-      {!isAdmin && (
-        <p className="note">Library and user management are available to admins.</p>
-      )}
+    <div className="min-h-screen">
+      <AppHeader />
+      <main className="container max-w-4xl py-6">
+        <h1 className="mb-5 text-2xl font-semibold">Settings</h1>
+        <Tabs defaultValue="account">
+          <TabsList>
+            <TabsTrigger value="account">Account</TabsTrigger>
+            {isAdmin && <TabsTrigger value="users">Users</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="libraries">Libraries</TabsTrigger>}
+          </TabsList>
+          <TabsContent value="account"><AccountTab /></TabsContent>
+          {isAdmin && <TabsContent value="users"><UsersTab /></TabsContent>}
+          {isAdmin && <TabsContent value="libraries"><LibrariesTab /></TabsContent>}
+        </Tabs>
+      </main>
     </div>
   );
 }
 
-function AccountSection() {
+function AccountTab() {
   const [cur, setCur] = useState("");
   const [next, setNext] = useState("");
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMsg("");
-    setErr("");
+    setBusy(true);
     try {
       await changeMyPassword(cur, next);
       setCur("");
       setNext("");
-      setMsg("Password changed.");
+      toast.success("Password changed");
     } catch (e) {
-      setErr(String((e as Error).message));
+      toast.error(errMsg(e));
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <section>
-      <h1 className="row-title">Account</h1>
-      <form className="addbar" onSubmit={submit}>
-        <input className="search" type="password" placeholder="Current password"
-          value={cur} onChange={(e) => setCur(e.target.value)} autoComplete="current-password" />
-        <input className="search" type="password" placeholder="New password"
-          value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
-        <button className="btn" type="submit">Change password</button>
-      </form>
-      {msg && <p className="note ok-text">{msg}</p>}
-      {err && <p className="note bad">{err}</p>}
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle>Password</CardTitle>
+        <CardDescription>Change your account password.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <Label>Current password</Label>
+            <Input className="w-56" type="password" value={cur}
+              onChange={(e) => setCur(e.target.value)} autoComplete="current-password" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>New password</Label>
+            <Input className="w-56" type="password" value={next}
+              onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
+          </div>
+          <Button type="submit" disabled={busy}>Change password</Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
-function UsersSection() {
+function UsersTab() {
   const qc = useQueryClient();
   const { data: users } = useQuery({ queryKey: ["users"], queryFn: getUsers });
   const { data: libs } = useQuery({ queryKey: ["libraries"], queryFn: getLibraries });
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [admin, setAdmin] = useState(false);
-  const [err, setErr] = useState("");
-
   const refresh = () => qc.invalidateQueries({ queryKey: ["users"] });
+
+  const [u, setU] = useState("");
+  const [pw, setPw] = useState("");
+  const [admin, setAdmin] = useState(false);
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr("");
     try {
-      await createUser(username.trim(), password, admin);
-      setUsername("");
-      setPassword("");
+      await createUser(u.trim(), pw, admin);
+      setU("");
+      setPw("");
       setAdmin(false);
       refresh();
+      toast.success("User created");
     } catch (e) {
-      setErr(String((e as Error).message));
+      toast.error(errMsg(e));
     }
   };
 
   return (
-    <section>
-      <h1 className="row-title">Users</h1>
-      <ul className="results">
-        {(users ?? []).map((u) => (
-          <UserItem key={u.id} user={u} libs={libs ?? []} onChanged={refresh} setErr={setErr} />
-        ))}
-      </ul>
-      <form className="addbar" onSubmit={add}>
-        <input className="search nameinput" placeholder="New username"
-          value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="off" />
-        <input className="search nameinput" type="password" placeholder="Password"
-          value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
-        <label className="chip" style={{ cursor: "pointer" }}>
-          <input type="checkbox" checked={admin} onChange={(e) => setAdmin(e.target.checked)} /> admin
-        </label>
-        <button className="btn" type="submit">Add user</button>
-      </form>
-      <p className="note" style={{ padding: "4px 2px" }}>
-        New users can see all libraries by default. Use “Access” to restrict a user to specific ones.
-      </p>
-      {err && <p className="note bad">{err}</p>}
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle>Users</CardTitle>
+        <CardDescription>
+          Manage accounts and per-library access. New users can see all libraries by default.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="divide-y rounded-lg border">
+          {(users ?? []).map((user) => (
+            <UserRowItem key={user.id} user={user} libs={libs ?? []} onChanged={refresh} />
+          ))}
+        </div>
+        <form onSubmit={add} className="flex flex-wrap items-end gap-3 border-t pt-4">
+          <div className="space-y-1.5">
+            <Label>Username</Label>
+            <Input className="w-44" value={u} onChange={(e) => setU(e.target.value)} autoComplete="off" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Password</Label>
+            <Input className="w-44" type="password" value={pw}
+              onChange={(e) => setPw(e.target.value)} autoComplete="new-password" />
+          </div>
+          <label className="flex h-9 items-center gap-2 text-sm">
+            <Checkbox checked={admin} onCheckedChange={(v) => setAdmin(v === true)} /> Admin
+          </label>
+          <Button type="submit"><Plus /> Add user</Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
-function UserItem({
-  user,
-  libs,
-  onChanged,
-  setErr,
-}: {
-  user: UserRow;
-  libs: LibraryItem[];
-  onChanged: () => void;
-  setErr: (s: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
+function UserRowItem({ user, libs, onChanged }: { user: UserRow; libs: LibraryItem[]; onChanged: () => void }) {
+  const [accessOpen, setAccessOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const [all, setAll] = useState(user.allLibraries);
   const [ids, setIds] = useState<number[]>(user.libraryIds);
+  const [newPw, setNewPw] = useState("");
 
-  const remove = async () => {
-    if (!window.confirm("Delete this user? Their progress will be removed.")) return;
+  const accessLabel = user.isAdmin || user.allLibraries
+    ? "all libraries"
+    : `${user.libraryIds.length} librar${user.libraryIds.length === 1 ? "y" : "ies"}`;
+
+  const saveAccess = async () => {
+    try {
+      await setUserAccess(user.id, all, ids);
+      setAccessOpen(false);
+      onChanged();
+      toast.success("Access updated");
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  };
+  const doReset = async () => {
+    try {
+      await resetUserPassword(user.id, newPw);
+      setResetOpen(false);
+      setNewPw("");
+      toast.success("Password reset");
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  };
+  const doDelete = async () => {
     try {
       await deleteUser(user.id);
       onChanged();
+      toast.success("User deleted");
     } catch (e) {
-      setErr(String((e as Error).message));
-    }
-  };
-  const resetPw = async () => {
-    const pw = window.prompt("New password for this user:");
-    if (!pw) return;
-    try {
-      await resetUserPassword(user.id, pw);
-      window.alert("Password reset.");
-    } catch (e) {
-      setErr(String((e as Error).message));
+      toast.error(errMsg(e));
     }
   };
   const toggle = (id: number) =>
     setIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  const saveAccess = async () => {
-    try {
-      await setUserAccess(user.id, all, ids);
-      setEditing(false);
-      onChanged();
-    } catch (e) {
-      setErr(String((e as Error).message));
-    }
-  };
-
-  const accessLabel = user.isAdmin
-    ? "all libraries (admin)"
-    : user.allLibraries
-      ? "all libraries"
-      : `${user.libraryIds.length} librar${user.libraryIds.length === 1 ? "y" : "ies"}`;
 
   return (
-    <li style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-        <span>
-          <span className="res-title">{user.username}</span>{" "}
-          <span className="res-ctx">{user.isAdmin ? "admin" : "user"} · {accessLabel}</span>
-        </span>
-        <span style={{ display: "flex", gap: 8 }}>
-          {!user.isAdmin && (
-            <button className="chip" onClick={() => setEditing((v) => !v)}>Access</button>
-          )}
-          <button className="chip" onClick={() => void resetPw()}>Reset password</button>
-          <button className="chip" onClick={() => void remove()}>Delete</button>
-        </span>
-      </div>
-
-      {editing && !user.isAdmin && (
-        <div className="browser">
-          <label className="chip" style={{ cursor: "pointer" }}>
-            <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> All libraries
-          </label>
-          {!all && (
-            <ul className="results" style={{ margin: "10px 0" }}>
-              {libs.map((l) => (
-                <li key={l.id}>
-                  <label className="linklike" style={{ cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={ids.includes(l.id)}
-                      onChange={() => toggle(l.id)}
-                    />{" "}
-                    {l.name || l.path}
-                  </label>
-                </li>
-              ))}
-              {libs.length === 0 && <li><span className="res-ctx">No libraries yet.</span></li>}
-            </ul>
-          )}
-          <button className="btn" onClick={() => void saveAccess()}>Save access</button>
+    <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 font-medium">
+          {user.username}
+          {user.isAdmin && <Badge>admin</Badge>}
         </div>
-      )}
-    </li>
+        <div className="text-xs text-muted-foreground">{accessLabel}</div>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        {!user.isAdmin && (
+          <Dialog open={accessOpen} onOpenChange={setAccessOpen}>
+            <DialogTrigger asChild><Button variant="outline" size="sm">Access</Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Library access — {user.username}</DialogTitle></DialogHeader>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox checked={all} onCheckedChange={(v) => setAll(v === true)} /> All libraries
+              </label>
+              {!all && (
+                <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border p-3">
+                  {libs.map((l) => (
+                    <label key={l.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox checked={ids.includes(l.id)} onCheckedChange={() => toggle(l.id)} />
+                      <span className="truncate">{l.name || l.path}</span>
+                    </label>
+                  ))}
+                  {libs.length === 0 && <p className="text-sm text-muted-foreground">No libraries yet.</p>}
+                </div>
+              )}
+              <DialogFooter><Button onClick={() => void saveAccess()}>Save</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm"><KeyRound /></Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Reset password — {user.username}</DialogTitle></DialogHeader>
+            <Input type="password" placeholder="New password" value={newPw}
+              onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" />
+            <DialogFooter>
+              <Button onClick={() => void doReset()} disabled={newPw.length < 4}>Reset password</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm"><Trash2 /></Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {user.username}?</AlertDialogTitle>
+              <AlertDialogDescription>Their account and watch progress will be removed.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction className={DESTRUCTIVE} onClick={() => void doDelete()}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
   );
 }
 
-function LibrariesSection() {
+function LibrariesTab() {
   const qc = useQueryClient();
   const { data: libs } = useQuery({ queryKey: ["libraries"], queryFn: getLibraries });
-
-  const [path, setPath] = useState("/");
-  const [name, setName] = useState("");
-  const [bdata, setBdata] = useState<BrowseResult | null>(null);
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
-
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["libraries"] });
     qc.invalidateQueries({ queryKey: ["courses"] });
   };
 
-  const doBrowse = async (p: string) => {
-    setErr("");
-    try {
-      setBdata(await browse(p));
-    } catch (e) {
-      setErr(String((e as Error).message));
-    }
-  };
-  const doAdd = async (p: string) => {
-    const target = p.trim();
-    if (!target) return;
+  const [path, setPath] = useState("/");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const add = async (p: string) => {
+    const t = p.trim();
+    if (!t) return;
     setBusy(true);
-    setErr("");
-    setMsg("");
     try {
-      await addLibrary(target, name.trim() || undefined);
+      await addLibrary(t, name.trim() || undefined);
       setName("");
-      setMsg(`Added “${target}” — scanning in the background…`);
+      toast.success(`Added “${t}” — scanning…`);
       refresh();
       setTimeout(refresh, 2500);
       setTimeout(refresh, 6000);
     } catch (e) {
-      setErr(String((e as Error).message));
+      toast.error(errMsg(e));
     } finally {
       setBusy(false);
     }
   };
-  const doDelete = async (id: number) => {
-    if (!window.confirm("Remove this library? Its courses and progress will be deleted.")) return;
-    await deleteLibrary(id);
-    refresh();
-  };
-  const doRescan = async () => {
+  const rescan = async () => {
     await rescanAll();
-    setMsg("Rescan started…");
+    toast.success("Rescan started");
     setTimeout(refresh, 2000);
     setTimeout(refresh, 6000);
   };
 
   return (
-    <section>
-      <h1 className="row-title">Libraries</h1>
-      <p className="note" style={{ padding: "0 2px 12px" }}>
-        Add folders that contain your courses. In an LXC/Docker setup, mount the host folder
-        into the container first, then add its in-container path here.
-      </p>
-
-      <ul className="results">
-        {(libs ?? []).map((l) => (
-          <li key={l.id}>
-            <span>
-              <span className="res-title">{l.name || l.path}</span>{" "}
-              <span className="res-ctx">
-                {l.path} · {l.courseCount} courses{l.accessible ? "" : " · ⚠ not accessible"}
-              </span>
-            </span>
-            <button className="chip" onClick={() => void doDelete(l.id)}>Remove</button>
-          </li>
-        ))}
-        {libs && libs.length === 0 && (
-          <li><span className="res-ctx">No libraries yet — add one below.</span></li>
-        )}
-      </ul>
-
-      <div className="addbar">
-        <input className="search" value={path} onChange={(e) => setPath(e.target.value)}
-          placeholder="/path/inside/the/container" />
-        <input className="search nameinput" value={name} onChange={(e) => setName(e.target.value)}
-          placeholder="Name (optional)" />
-        <button className="chip" onClick={() => void doBrowse(path || "/")}>Browse…</button>
-        <button className="btn" disabled={busy} onClick={() => void doAdd(path)}>
-          {busy ? "Adding…" : "Add library"}
-        </button>
-        <button className="chip" onClick={() => void doRescan()}>Rescan all</button>
-      </div>
-      {msg && <p className="note ok-text">{msg}</p>}
-      {err && <p className="note bad">{err}</p>}
-
-      {bdata && (
-        <div className="browser">
-          <div className="sec-title">Browsing: {bdata.path}</div>
-          <ul className="results">
-            {bdata.parent && (
-              <li><button className="linklike" onClick={() => void doBrowse(bdata.parent!)}>⬆ ..</button></li>
-            )}
-            {bdata.dirs.map((d) => (
-              <li key={d.path}>
-                <button className="linklike" onClick={() => void doBrowse(d.path)}>📁 {d.name}</button>
-                <button className="chip" onClick={() => setPath(d.path)}>Select</button>
-              </li>
-            ))}
-            {bdata.dirs.length === 0 && <li><span className="res-ctx">(no subfolders)</span></li>}
-          </ul>
-          <button className="btn" onClick={() => void doAdd(bdata.path)}>Add this folder</button>
+    <Card>
+      <CardHeader>
+        <CardTitle>Libraries</CardTitle>
+        <CardDescription>
+          Folders that contain your courses. In an LXC/Docker setup, mount the host folder into the
+          container first, then add its in-container path here.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="divide-y rounded-lg border">
+          {(libs ?? []).map((l) => <LibraryRow key={l.id} lib={l} onRemoved={refresh} />)}
+          {libs && libs.length === 0 && (
+            <p className="px-4 py-3 text-sm text-muted-foreground">No libraries yet — add one below.</p>
+          )}
         </div>
-      )}
-    </section>
+        <div className="flex flex-wrap items-end gap-3 border-t pt-4">
+          <div className="min-w-[240px] flex-1 space-y-1.5">
+            <Label>Path (inside the container)</Label>
+            <Input value={path} onChange={(e) => setPath(e.target.value)} placeholder="/media/courses" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Name (optional)</Label>
+            <Input className="w-40" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <BrowseDialog onSelect={setPath} onAdd={(p) => void add(p)} />
+          <Button onClick={() => void add(path)} disabled={busy}>
+            <Plus /> {busy ? "Adding…" : "Add"}
+          </Button>
+          <Button variant="outline" onClick={() => void rescan()}><RefreshCw /> Rescan all</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LibraryRow({ lib, onRemoved }: { lib: LibraryItem; onRemoved: () => void }) {
+  const doRemove = async () => {
+    try {
+      await deleteLibrary(lib.id);
+      onRemoved();
+      toast.success("Library removed");
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  };
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <div className="truncate font-medium">{lib.name || lib.path}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {lib.path} · {lib.courseCount} courses
+          {!lib.accessible && <span className="text-destructive"> · not accessible</span>}
+        </div>
+      </div>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="destructive" size="sm"><Trash2 /></Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this library?</AlertDialogTitle>
+            <AlertDialogDescription>Its courses and progress will be deleted.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className={DESTRUCTIVE} onClick={() => void doRemove()}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function BrowseDialog({ onSelect, onAdd }: { onSelect: (p: string) => void; onAdd: (p: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [bdata, setBdata] = useState<BrowseResult | null>(null);
+
+  const go = async (p: string) => {
+    try {
+      setBdata(await browse(p));
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) void go(bdata?.path ?? "/"); }}>
+      <DialogTrigger asChild><Button variant="outline"><Folder /> Browse…</Button></DialogTrigger>
+      <DialogContent className="max-w-xl">
+        <DialogHeader><DialogTitle>Browse folders</DialogTitle></DialogHeader>
+        {bdata && (
+          <>
+            <div className="truncate text-sm text-muted-foreground">{bdata.path}</div>
+            <div className="max-h-72 divide-y overflow-y-auto rounded-md border">
+              {bdata.parent && (
+                <button className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
+                  onClick={() => void go(bdata.parent!)}>
+                  <FolderUp className="size-4" /> ..
+                </button>
+              )}
+              {bdata.dirs.map((d) => (
+                <div key={d.path} className="flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent">
+                  <button className="flex min-w-0 items-center gap-2" onClick={() => void go(d.path)}>
+                    <Folder className="size-4 shrink-0" /> <span className="truncate">{d.name}</span>
+                  </button>
+                  <Button size="sm" variant="ghost"
+                    onClick={() => { onSelect(d.path); setOpen(false); }}>Select</Button>
+                </div>
+              ))}
+              {bdata.dirs.length === 0 && (
+                <div className="px-3 py-2 text-sm text-muted-foreground">(no subfolders)</div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button onClick={() => { onAdd(bdata.path); setOpen(false); }}>Add this folder</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

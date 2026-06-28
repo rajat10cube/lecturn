@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
 import mpegts from "mpegts.js";
+import { useEffect, useRef, useState } from "react";
 
-import type { LectureItem } from "../api";
+import { Button } from "@/components/ui/button";
+import type { LectureItem } from "@/api";
 
 export default function Player({
   lecture,
@@ -33,13 +34,12 @@ export default function Player({
       player.attachMediaElement(video);
       player.load();
     } else {
-      video.src = mediaUrl; // native + remux (fragmented mp4)
+      video.src = mediaUrl;
     }
 
     return () => {
-      if (player) {
-        player.destroy();
-      } else {
+      if (player) player.destroy();
+      else {
         video.removeAttribute("src");
         video.load();
       }
@@ -57,7 +57,6 @@ export default function Player({
       }
     }
   };
-
   const handleTime = () => {
     const v = ref.current;
     if (!v) return;
@@ -67,12 +66,10 @@ export default function Player({
       onProgress?.(v.currentTime, v.duration || 0, false);
     }
   };
-
   const flush = () => {
     const v = ref.current;
     if (v) onProgress?.(v.currentTime, v.duration || 0, false);
   };
-
   const handleEnded = () => {
     const v = ref.current;
     const d = v?.duration || 0;
@@ -82,20 +79,28 @@ export default function Player({
 
   if (lecture.playback === "document") {
     return (
-      <div className="player-doc">
-        <iframe title={lecture.title} src={lecture.stream} className="doc-frame" />
-        <a className="btn" href={lecture.stream} target="_blank" rel="noreferrer">
-          Open document
-        </a>
+      <div className="space-y-3">
+        <iframe
+          title={lecture.title}
+          src={lecture.stream}
+          className="aspect-video w-full rounded-lg border bg-white"
+        />
+        <Button asChild variant="secondary">
+          <a href={lecture.stream} target="_blank" rel="noreferrer">Open document</a>
+        </Button>
       </div>
     );
   }
 
   if (err) {
     return (
-      <div className="player-msg">
-        <p>Couldn’t play this file in the browser (remux/ffmpeg unavailable).</p>
-        <a className="btn" href={lecture.stream}>Download</a>
+      <div className="grid aspect-video w-full place-items-center gap-3 rounded-lg border bg-card text-center">
+        <div>
+          <p className="text-muted-foreground">Couldn’t play this file in the browser.</p>
+          <Button asChild className="mt-3">
+            <a href={lecture.stream}>Download</a>
+          </Button>
+        </div>
       </div>
     );
   }
@@ -103,7 +108,7 @@ export default function Player({
   return (
     <video
       ref={ref}
-      className="player"
+      className="aspect-video w-full rounded-lg border bg-black"
       controls
       autoPlay
       onLoadedMetadata={handleLoaded}

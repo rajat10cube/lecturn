@@ -1,13 +1,37 @@
+import { GraduationCap } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import { useAuth } from "../auth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/auth";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const { ready, user, needsSetup } = useAuth();
-  if (!ready) return <p className="note">Loading…</p>;
+  if (!ready) {
+    return <div className="grid min-h-screen place-items-center text-muted-foreground">Loading…</div>;
+  }
   if (needsSetup) return <SetupScreen />;
   if (!user) return <LoginScreen />;
   return <>{children}</>;
+}
+
+function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+  return (
+    <div className="grid min-h-screen place-items-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="items-center text-center">
+          <div className="mb-2 grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
+            <GraduationCap className="size-6" />
+          </div>
+          <CardTitle className="text-2xl">{title}</CardTitle>
+          <CardDescription>{subtitle}</CardDescription>
+        </CardHeader>
+        <CardContent>{children}</CardContent>
+      </Card>
+    </div>
+  );
 }
 
 function SetupScreen() {
@@ -34,22 +58,29 @@ function SetupScreen() {
   };
 
   return (
-    <div className="login">
-      <form className="login-card" onSubmit={submit}>
-        <h1>Welcome to Lecturn</h1>
-        <p className="tagline">Create your admin account</p>
-        <input className="search" placeholder="Username" autoFocus autoComplete="username"
-          value={username} onChange={(e) => setUsername(e.target.value)} />
-        <input className="search" type="password" placeholder="Password" autoComplete="new-password"
-          value={password} onChange={(e) => setPassword(e.target.value)} />
-        <input className="search" type="password" placeholder="Confirm password" autoComplete="new-password"
-          value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-        {err && <div className="bad">{err}</div>}
-        <button className="btn" type="submit" disabled={busy}>
+    <AuthShell title="Welcome to Lecturn" subtitle="Create your admin account">
+      <form className="space-y-3" onSubmit={submit}>
+        <div className="space-y-1.5">
+          <Label htmlFor="su-user">Username</Label>
+          <Input id="su-user" autoFocus autoComplete="username" value={username}
+            onChange={(e) => setUsername(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="su-pw">Password</Label>
+          <Input id="su-pw" type="password" autoComplete="new-password" value={password}
+            onChange={(e) => setPassword(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="su-pw2">Confirm password</Label>
+          <Input id="su-pw2" type="password" autoComplete="new-password" value={confirm}
+            onChange={(e) => setConfirm(e.target.value)} />
+        </div>
+        {err && <p className="text-sm text-destructive">{err}</p>}
+        <Button type="submit" className="w-full" disabled={busy}>
           {busy ? "Creating…" : "Create account"}
-        </button>
+        </Button>
       </form>
-    </div>
+    </AuthShell>
   );
 }
 
@@ -74,19 +105,23 @@ function LoginScreen() {
   };
 
   return (
-    <div className="login">
-      <form className="login-card" onSubmit={submit}>
-        <h1>Lecturn</h1>
-        <p className="tagline">Sign in to continue</p>
-        <input className="search" placeholder="Username" autoFocus autoComplete="username"
-          value={username} onChange={(e) => setUsername(e.target.value)} />
-        <input className="search" type="password" placeholder="Password" autoComplete="current-password"
-          value={password} onChange={(e) => setPassword(e.target.value)} />
-        {err && <div className="bad">{err}</div>}
-        <button className="btn" type="submit" disabled={busy}>
+    <AuthShell title="Lecturn" subtitle="Sign in to continue">
+      <form className="space-y-3" onSubmit={submit}>
+        <div className="space-y-1.5">
+          <Label htmlFor="li-user">Username</Label>
+          <Input id="li-user" autoFocus autoComplete="username" value={username}
+            onChange={(e) => setUsername(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="li-pw">Password</Label>
+          <Input id="li-pw" type="password" autoComplete="current-password" value={password}
+            onChange={(e) => setPassword(e.target.value)} />
+        </div>
+        {err && <p className="text-sm text-destructive">{err}</p>}
+        <Button type="submit" className="w-full" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}
-        </button>
+        </Button>
       </form>
-    </div>
+    </AuthShell>
   );
 }
