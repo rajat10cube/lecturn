@@ -71,7 +71,7 @@ export default function Library() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <Link to="/settings" className="chip">Libraries</Link>
+        <Link to="/settings" className="chip">Settings</Link>
         <button className="chip" onClick={() => void signOut()}>Logout</button>
       </header>
 

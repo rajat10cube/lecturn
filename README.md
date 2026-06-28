@@ -19,8 +19,9 @@ server.
 - **Streaming** — HTTP-range (path-traversal-guarded) `.mp4` direct play, `.ts`
   via `mpegts.js`, on-the-fly `.mkv` remux (`ffmpeg -c copy`), SRT→WebVTT
   subtitles.
-- **Login** — proper in-app login page (cookie session); per-deploy admin
-  credentials. Basic auth also accepted for API/CLI.
+- **Accounts** — in-app login page (cookie session) with **multiple users**:
+  admins manage users + libraries; each user gets their **own progress**. Hashed
+  passwords (PBKDF2), self-serve password change. Basic auth also works for API/CLI.
 - **Libraries** — add/remove course folders from the web UI (like Jellyfin),
   with a built-in folder browser; auto-scans on add.
 - **Library UI** — searchable grid (SQLite FTS5) across courses *and* lessons
@@ -90,11 +91,14 @@ See **[deploy/lxc/README.md](deploy/lxc/README.md)**. Reverse proxy:
 **[docs/DEPLOY.md](docs/DEPLOY.md)**. Mount course libraries read-only; app state
 lives in a data volume. Put it behind your existing reverse proxy / VPN.
 
-## Sign in
-Lecturn shows its own **login page** (cookie session). Default credentials are
-`admin` / `change-me` (or whatever `LECTURN_AUTH_PASS` you set) — **change it
-before exposing.** API/CLI clients may also use HTTP Basic (e.g. `curl -u`).
-Set `LECTURN_AUTH=none` to disable auth entirely (LAN/VPN only).
+## Accounts
+Lecturn shows its own **login page** (cookie session). On first run an **admin**
+is created from `LECTURN_AUTH_USER` / `LECTURN_AUTH_PASS` (default `admin` /
+`change-me` — **change it before exposing**). Admins add more users in
+**Settings → Users**; each user has their own watch progress. Passwords are
+hashed (PBKDF2) and users can change their own in **Settings → Account**.
+API/CLI clients may use HTTP Basic (e.g. `curl -u`). Set `LECTURN_AUTH=none` to
+disable auth entirely (single-user, LAN/VPN only).
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, conventions, and PR guidelines.

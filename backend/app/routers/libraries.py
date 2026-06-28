@@ -9,13 +9,13 @@ from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from ..auth import require_auth
+from ..auth import require_admin
 from ..db import get_db
 from ..models import Course, Library
 from ..scanner.service import run_scan
 from ..search import rebuild_index
 
-router = APIRouter(prefix="/libraries", tags=["libraries"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/libraries", tags=["libraries"], dependencies=[Depends(require_admin)])
 
 
 class LibraryIn(BaseModel):

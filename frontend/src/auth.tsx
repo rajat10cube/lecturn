@@ -12,6 +12,8 @@ import { getMe, login as apiLogin, logout as apiLogout, setUnauthorizedHandler }
 interface AuthCtx {
   ready: boolean;
   user: string | null;
+  isAdmin: boolean;
+  authDisabled: boolean;
   signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -27,10 +29,14 @@ export function useAuth(): AuthCtx {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [authDisabled, setAuthDisabled] = useState(false);
 
   const refresh = useCallback(async () => {
     const me = await getMe();
     setUser(me ? me.username : null);
+    setIsAdmin(me ? me.isAdmin : false);
+    setAuthDisabled(me ? me.authDisabled : false);
     setReady(true);
   }, []);
 
@@ -43,11 +49,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (username: string, password: string) => {
     const me = await apiLogin(username, password);
     setUser(me.username);
+    setIsAdmin(me.isAdmin);
+    setAuthDisabled(me.authDisabled);
   };
   const signOut = async () => {
     await apiLogout();
     setUser(null);
+    setIsAdmin(false);
   };
 
-  return <Ctx.Provider value={{ ready, user, signIn, signOut }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={{ ready, user, isAdmin, authDisabled, signIn, signOut }}>
+      {children}
+    </Ctx.Provider>
+  );
 }

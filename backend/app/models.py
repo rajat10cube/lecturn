@@ -20,6 +20,16 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
 
+class User(Base):
+    __tablename__ = "user"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class Library(Base):
     __tablename__ = "library"
 
@@ -115,9 +125,12 @@ class Attachment(Base):
 
 class Progress(Base):
     __tablename__ = "progress"
-    __table_args__ = (UniqueConstraint("lecture_id", name="uq_progress_lecture"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "lecture_id", name="uq_progress_user_lecture"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), index=True)
     lecture_id: Mapped[int] = mapped_column(ForeignKey("lecture.id", ondelete="CASCADE"))
     position_sec: Mapped[float] = mapped_column(Float, default=0.0)
     duration_sec: Mapped[float | None] = mapped_column(Float, nullable=True)

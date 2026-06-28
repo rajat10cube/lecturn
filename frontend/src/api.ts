@@ -81,7 +81,14 @@ async function getJSON<T>(path: string): Promise<T> {
 
 export interface Me {
   username: string;
+  isAdmin: boolean;
   authDisabled: boolean;
+}
+
+export interface UserRow {
+  id: number;
+  username: string;
+  isAdmin: boolean;
 }
 
 export async function getMe(): Promise<Me | null> {
@@ -104,6 +111,35 @@ export async function login(username: string, password: string): Promise<Me> {
 
 export async function logout(): Promise<void> {
   await fetch(`${BASE}/auth/logout`, { method: "POST", credentials: "include" });
+}
+
+async function postJSON(path: string, body: unknown): Promise<void> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d?.detail || `request failed (${res.status})`);
+  }
+}
+
+export const getUsers = () => getJSON<UserRow[]>("/users");
+export const createUser = (username: string, password: string, isAdmin: boolean) =>
+  postJSON("/users", { username, password, is_admin: isAdmin });
+export const resetUserPassword = (id: number, password: string) =>
+  postJSON(`/users/${id}/password`, { password });
+export const changeMyPassword = (current_password: string, new_password: string) =>
+  postJSON("/auth/password", { current_password, new_password });
+
+export async function deleteUser(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/users/${id}`, { method: "DELETE", credentials: "include" });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d?.detail || `delete failed (${res.status})`);
+  }
 }
 
 export interface SearchResult {

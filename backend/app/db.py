@@ -51,6 +51,17 @@ def init_db() -> None:
     from . import models  # noqa: F401  -- register models on Base.metadata
     from .search import FTS_DDL
 
+    # Migration: the legacy single-user `progress` table (no user_id) is dropped
+    # and recreated per-user. (Pre-1.0; old progress is not carried over.)
+    with engine.begin() as conn:
+        info = conn.exec_driver_sql("PRAGMA table_info(progress)").fetchall()
+        if info and not any(row[1] == "user_id" for row in info):
+            conn.exec_driver_sql("DROP TABLE progress")
+
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         conn.exec_driver_sql(FTS_DDL)
+
+    from .auth import ensure_admin  # seed the first admin from configured creds
+
+    ensure_admin()

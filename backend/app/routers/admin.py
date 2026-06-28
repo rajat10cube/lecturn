@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 
-from ..auth import require_auth
+from ..auth import require_admin
 from ..scanner.service import run_scan, scan_status
 
-router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
 @router.post("/rescan")

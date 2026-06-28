@@ -24,6 +24,7 @@ from .routers import (
     media,
     progress,
     search,
+    users,
 )
 
 settings = get_settings()
@@ -31,7 +32,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    init_db()
+    init_db()  # also seeds the first admin (from configured creds) on first run
     from .scanner.service import run_scan, seed_libraries_from_config
 
     seed_libraries_from_config()  # first-run import from config/env, if any
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(media.router, prefix="/api")
     app.include_router(progress.router, prefix="/api")
     app.include_router(search.router, prefix="/api")
+    app.include_router(users.router, prefix="/api")
     app.include_router(admin.router, prefix="/api")
 
     # Serve the built SPA in production (single container). In dev, Vite serves it.

@@ -8,15 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..auth import require_auth
+from ..auth import require_user
 from ..db import get_db
-from ..models import Attachment, Course, Lecture, Progress, Section
+from ..models import Attachment, Course, Lecture, Progress, Section, User
 
-router = APIRouter(
-    prefix="/courses",
-    tags=["courses"],
-    dependencies=[Depends(require_auth)],
-)
+router = APIRouter(prefix="/courses", tags=["courses"])
 
 _NATIVE_VIDEO = {".mp4", ".m4v", ".webm", ".mov"}
 
@@ -40,7 +36,7 @@ def _cover_url(c: Course) -> str | None:
 
 
 @router.get("")
-def list_courses(db: Session = Depends(get_db)) -> dict:
+def list_courses(user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
     rows = db.scalars(
         select(Course).where(Course.missing.is_(False)).order_by(Course.position, Course.title)
     ).all()
@@ -49,7 +45,7 @@ def list_courses(db: Session = Depends(get_db)) -> dict:
         db.execute(
             select(Lecture.course_id, func.count())
             .join(Progress, Progress.lecture_id == Lecture.id)
-            .where(Progress.completed.is_(True))
+            .where(Progress.completed.is_(True), Progress.user_id == user.id)
             .group_by(Lecture.course_id)
         ).all()
     )
@@ -57,6 +53,7 @@ def list_courses(db: Session = Depends(get_db)) -> dict:
         db.execute(
             select(Lecture.course_id, func.max(Progress.updated_at))
             .join(Progress, Progress.lecture_id == Lecture.id)
+            .where(Progress.user_id == user.id)
             .group_by(Lecture.course_id)
         ).all()
     )
@@ -79,7 +76,9 @@ def list_courses(db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/{slug}")
-def get_course(slug: str, db: Session = Depends(get_db)) -> dict:
+def get_course(
+    slug: str, user: User = Depends(require_user), db: Session = Depends(get_db)
+) -> dict:
     c = db.scalar(select(Course).where(Course.slug == slug, Course.missing.is_(False)))
     if c is None:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -95,7 +94,7 @@ def get_course(slug: str, db: Session = Depends(get_db)) -> dict:
         p.lecture_id: p
         for p in db.scalars(
             select(Progress).join(Lecture, Lecture.id == Progress.lecture_id).where(
-                Lecture.course_id == c.id
+                Lecture.course_id == c.id, Progress.user_id == user.id
             )
         )
     }
