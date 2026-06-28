@@ -22,6 +22,23 @@ function KindIcon({ kind, className }: { kind: string; className?: string }) {
   return <PlayCircle className={c} />;
 }
 
+function fmtDur(s?: number | null): string {
+  if (!s || s <= 0) return "";
+  const t = Math.round(s);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = t % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+}
+
+function fmtTotal(s: number): string {
+  if (s <= 0) return "";
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 export default function CoursePage() {
   const { slug = "" } = useParams();
   const [searchParams] = useSearchParams();
@@ -90,6 +107,7 @@ export default function CoursePage() {
 
   const completedCount = Object.values(progress).filter((p) => p.completed).length;
   const coursePct = data.lectureCount ? Math.round((completedCount / data.lectureCount) * 100) : 0;
+  const totalSec = flat.reduce((a, l) => a + (l.durationSec || 0), 0);
   const curProg = current ? progress[current.id] : undefined;
   const startPosition = curProg && !curProg.completed ? curProg.positionSec : 0;
 
@@ -107,6 +125,7 @@ export default function CoursePage() {
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {completedCount}/{data.lectureCount} · {coursePct}%
+              {totalSec > 0 && ` · ${fmtTotal(totalSec)}`}
             </p>
           </div>
 
@@ -120,21 +139,41 @@ export default function CoursePage() {
                   {s.lectures.map((l) => {
                     const p = progress[l.id];
                     const active = l.id === currentId;
+                    const dur = fmtDur(l.durationSec);
+                    const partial = !p?.completed && (p?.positionSec ?? 0) > 2 && (l.durationSec ?? 0) > 0;
+                    const barPct = partial ? Math.min(100, (p!.positionSec / (l.durationSec as number)) * 100) : 0;
                     return (
                       <li key={l.id}>
                         <button
                           onClick={() => setCurrentId(l.id)}
                           className={cn(
-                            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                            "block w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors",
                             active ? "bg-primary text-primary-foreground" : "hover:bg-accent",
                           )}
                         >
-                          {p?.completed ? (
-                            <Check className={cn("size-4 shrink-0", !active && "text-primary")} />
-                          ) : (
-                            <KindIcon kind={l.kind} className={cn(!active && "text-muted-foreground")} />
+                          <div className="flex items-center gap-2">
+                            {p?.completed ? (
+                              <Check className={cn("size-4 shrink-0", !active && "text-primary")} />
+                            ) : (
+                              <KindIcon kind={l.kind} className={cn(!active && "text-muted-foreground")} />
+                            )}
+                            <span className="flex-1 truncate">{l.title}</span>
+                            {dur && (
+                              <span
+                                className={cn(
+                                  "shrink-0 text-xs tabular-nums",
+                                  active ? "text-primary-foreground/80" : "text-muted-foreground",
+                                )}
+                              >
+                                {dur}
+                              </span>
+                            )}
+                          </div>
+                          {partial && (
+                            <div className="ml-6 mt-1 h-0.5 overflow-hidden rounded-full bg-foreground/15">
+                              <div className="h-full bg-primary" style={{ width: `${barPct}%` }} />
+                            </div>
                           )}
-                          <span className="truncate">{l.title}</span>
                         </button>
                       </li>
                     );

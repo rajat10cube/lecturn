@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 
 from ..config import get_settings
 from ..db import SessionLocal
-from ..models import Course, Library
+from ..models import Course, Lecture, Library
 from .walk import discover_courses, iter_course_roots, walk_course
 from .sync import sync_course
 
@@ -78,10 +78,40 @@ def _scan_library(db, settings, lib: Library) -> None:
         c.missing = c.path not in seen
     db.commit()
 
+    _probe_durations(db, settings, lib)
+
     if found == 0:
         _status["errors"].append(
             {"library": lib.path, "error": "no courses found — check the folder structure or read permissions"}
         )
+
+
+def _probe_durations(db, settings, lib: Library) -> None:
+    """Fill in missing media durations with ffprobe (new lectures only)."""
+    if settings.ffmpeg == "off":
+        return
+    from ..probe import ffprobe_available, probe_duration
+
+    if not ffprobe_available():
+        return
+    pending = db.scalars(
+        select(Lecture)
+        .join(Course, Course.id == Lecture.course_id)
+        .where(Course.library_id == lib.id, Lecture.duration_sec.is_(None), Lecture.kind != "document")
+    ).all()
+    if not pending:
+        return
+
+    root = Path(lib.path)
+    _status["phase"] = "probing media"
+    for n, lec in enumerate(pending):
+        d = probe_duration(root / lec.path)
+        if d:
+            lec.duration_sec = d
+        if n % 25 == 0:
+            db.commit()
+    db.commit()
+    _status["phase"] = "scanning"
 
 
 def run_scan() -> dict:
