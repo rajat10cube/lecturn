@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronRight, FileText, Music, Paperclip, PlayCircle } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, FileText, Music, Paperclip, PlayCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
@@ -55,7 +55,15 @@ export default function CoursePage() {
   );
   const [progress, setProgress] = useState<Record<number, Prog>>({});
   const [currentId, setCurrentId] = useState<number | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const lastPut = useRef<{ id: number; t: number }>({ id: -1, t: 0 });
+  const toggleSection = (id: number) =>
+    setCollapsed((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
 
   useEffect(() => {
     if (!data) return;
@@ -130,11 +138,18 @@ export default function CoursePage() {
           </div>
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
-            {data.sections.map((s) => (
+            {data.sections.map((s) => {
+              const isCollapsed = collapsed.has(s.id);
+              return (
               <div key={s.id}>
-                <div className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {s.title}
-                </div>
+                <button
+                  onClick={() => toggleSection(s.id)}
+                  className="mb-1.5 flex w-full items-center gap-1 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", isCollapsed && "-rotate-90")} />
+                  <span className="truncate text-left">{s.title}</span>
+                </button>
+                {!isCollapsed && (
                 <ul className="space-y-0.5">
                   {s.lectures.map((l) => {
                     const p = progress[l.id];
@@ -179,8 +194,10 @@ export default function CoursePage() {
                     );
                   })}
                 </ul>
+                )}
               </div>
-            ))}
+              );
+            })}
 
             {data.attachments.length > 0 && (
               <div>
