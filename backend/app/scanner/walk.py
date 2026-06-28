@@ -143,6 +143,70 @@ def iter_course_roots(lib_root: Path, group_depth: int) -> Iterator[tuple[Path, 
                         yield d, group.name
 
 
+def _has_lecture_within(d: Path, cap: int) -> bool:
+    """True if a lecture file exists in ``d`` or up to ``cap`` levels below it."""
+    if cap <= 0:
+        return False
+    try:
+        entries = list(d.iterdir())
+    except OSError:
+        return False
+    if any(e.is_file() and C.classify(e.name)[0] == "lecture" for e in entries):
+        return True
+    for e in entries:
+        if e.is_dir() and not _ignored_dir(e.name) and not is_bundle(e):
+            if _has_lecture_within(e, cap - 1):
+                return True
+    return False
+
+
+def _classify_dir(d: Path, cap: int) -> str:
+    """'course' (lectures at depth 0 or 1), 'group' (lectures only deeper), or 'empty'."""
+    if _has_direct_lecture(d):
+        return "course"  # flat course
+    kids = _content_subdirs(d)
+    if any(_has_direct_lecture(k) for k in kids):
+        return "course"  # sectioned course (a child directly holds lectures)
+    if any(_has_lecture_within(k, cap) for k in kids):
+        return "group"   # lectures live deeper -> this is a grouping folder
+    return "empty"
+
+
+def discover_courses(lib_root: Path, cap: int = 6) -> Iterator[tuple[Path, str | None]]:
+    """Find course folders under a library root, descending grouping folders of any
+    depth (e.g. Udemy / Unreal Engine 5 / <course>). Category = the nearest grouping
+    folder name. Handles single-child wrapper folders as one course.
+    """
+    if _has_direct_lecture(lib_root):
+        yield lib_root, None
+        return
+    for c in _content_subdirs(lib_root):
+        yield from _discover(c, None, cap)
+
+
+def _looks_like_wrapper(outer: Path, inner: Path) -> bool:
+    """A redundant nested folder, e.g. 'Survival Kit 2.0/Environment Artist Survival Kit 2.0'."""
+    a = re.sub(r"[^a-z0-9]", "", outer.name.lower())
+    b = re.sub(r"[^a-z0-9]", "", inner.name.lower())
+    return bool(a) and bool(b) and (a in b or b in a)
+
+
+def _discover(d: Path, category: str | None, cap: int) -> Iterator[tuple[Path, str | None]]:
+    cls = _classify_dir(d, cap)
+    if cls == "course":
+        yield d, category
+    elif cls == "group":
+        kids = _content_subdirs(d)
+        # a duplicate-named single wrapper is one course (walk collapses it); a single
+        # *distinct* child is a real grouping folder (e.g. a provider with one course)
+        if len(kids) == 1 and _classify_dir(kids[0], cap) == "course" and _looks_like_wrapper(d, kids[0]):
+            yield d, category
+        else:
+            for k in kids:
+                yield from _discover(k, d.name, cap)
+    # "empty" -> skip
+
+
 def normalize_root(course_path: Path) -> tuple[Path, list[Path]]:
     """Collapse single wrapper folders; set aside resource bundles."""
     bundles: list[Path] = []

@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from ..config import get_settings
 from ..db import SessionLocal
 from ..models import Course, Library
-from .walk import detect_group_depth, iter_course_roots, walk_course
+from .walk import discover_courses, iter_course_roots, walk_course
 from .sync import sync_course
 
 _lock = threading.Lock()
@@ -56,14 +56,15 @@ def _scan_library(db, settings, lib: Library) -> None:
         _status["errors"].append({"library": lib.path, "error": "path not found inside the container"})
         return
 
-    group_depth = (
-        lib.group_depth
-        if lib.group_depth is not None and lib.group_depth >= 0
-        else detect_group_depth(root)
-    )
+    # group_depth >= 0 is an explicit override; otherwise auto-discover any nesting depth
+    if lib.group_depth is not None and lib.group_depth >= 0:
+        roots = iter_course_roots(root, lib.group_depth)
+    else:
+        roots = discover_courses(root)
+
     seen: set[str] = set()
     found = 0
-    for course_path, category in iter_course_roots(root, group_depth):
+    for course_path, category in roots:
         sc = walk_course(course_path, root, category, settings.section_max_depth, settings.min_video_bytes)
         if sc is None:
             continue
