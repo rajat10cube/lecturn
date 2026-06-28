@@ -11,6 +11,24 @@ def ffprobe_available() -> bool:
     return shutil.which("ffprobe") is not None
 
 
+def ffmpeg_available() -> bool:
+    return shutil.which("ffmpeg") is not None
+
+
+def generate_cover(video: Path, out: Path, at: float = 15.0) -> bool:
+    """Extract a single frame ~``at`` seconds into ``video`` as a JPEG cover."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-ss", str(at), "-i", str(video),
+             "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", str(out)],
+            capture_output=True, timeout=60,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return out.exists() and out.stat().st_size > 0
+
+
 def probe_duration(path: Path) -> float | None:
     try:
         out = subprocess.run(

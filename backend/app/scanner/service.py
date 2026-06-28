@@ -79,6 +79,7 @@ def _scan_library(db, settings, lib: Library) -> None:
     db.commit()
 
     _probe_durations(db, settings, lib)
+    _generate_covers(db, settings, lib)
 
     if found == 0:
         _status["errors"].append(
@@ -111,6 +112,39 @@ def _probe_durations(db, settings, lib: Library) -> None:
         if n % 25 == 0:
             db.commit()
     db.commit()
+    _status["phase"] = "scanning"
+
+
+def _generate_covers(db, settings, lib: Library) -> None:
+    """Generate a poster frame for courses lacking an on-disk or cached cover."""
+    if settings.ffmpeg == "off":
+        return
+    from ..probe import ffmpeg_available, generate_cover
+
+    if not ffmpeg_available():
+        return
+    covers_dir = settings.data_dir / "covers"
+    root = Path(lib.path)
+    courses = db.scalars(
+        select(Course).where(Course.library_id == lib.id, Course.missing.is_(False))
+    ).all()
+    for c in courses:
+        if c.cover_path:  # has on-disk art
+            continue
+        out = covers_dir / f"{c.id}.jpg"
+        if out.exists():
+            continue
+        lec = db.scalar(
+            select(Lecture)
+            .where(Lecture.course_id == c.id, Lecture.kind == "video")
+            .order_by(Lecture.position)
+            .limit(1)
+        )
+        if lec is None:
+            continue
+        at = min(max((lec.duration_sec or 150.0) * 0.1, 2.0), 120.0)
+        _status["phase"] = "thumbnails"
+        generate_cover(root / lec.path, out, at)
     _status["phase"] = "scanning"
 
 

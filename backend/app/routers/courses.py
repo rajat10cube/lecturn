@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..access import accessible_library_ids, can_access_course
 from ..auth import require_user
+from ..config import get_settings
 from ..db import get_db
 from ..models import Attachment, Course, Lecture, Progress, Section, User
 
@@ -33,7 +34,11 @@ def _playback(lec: Lecture) -> str:
 
 
 def _cover_url(c: Course) -> str | None:
-    return f"/api/media/cover/{c.slug}" if c.cover_path else None
+    if c.cover_path:
+        return f"/api/media/cover/{c.slug}"
+    if (get_settings().data_dir / "covers" / f"{c.id}.jpg").is_file():
+        return f"/api/media/cover/{c.slug}"
+    return None
 
 
 @router.get("")
