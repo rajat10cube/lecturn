@@ -52,8 +52,6 @@ RAM_MB="${RAM_MB:-2048}"
 DISK_GB="${DISK_GB:-10}"
 BRIDGE="${BRIDGE:-vmbr0}"
 UNPRIVILEGED="${UNPRIVILEGED:-1}"
-MEDIA_CT="${MEDIA_CT:-/libraries/courses}"
-MEDIA_HOST="${MEDIA_HOST:-}"
 LECTURN_AUTH_PASS="${LECTURN_AUTH_PASS:-$(gen_pass)}"
 STORAGE="${STORAGE:-$(pick_storage rootdir)}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-$(pick_storage vztmpl)}"
@@ -82,9 +80,6 @@ if [ -t 0 ] && command -v whiptail >/dev/null; then
     BRIDGE=$(whiptail --title "Advanced" --inputbox "Network bridge" 8 60 "$BRIDGE" 3>&1 1>&2 2>&3) || die "cancelled"
     if whiptail --title "Privilege" --yesno "Unprivileged container? (recommended)\n\nChoose <No> only if your course files are not world-readable." 12 64; then
       UNPRIVILEGED=1; else UNPRIVILEGED=0; fi
-    MEDIA_HOST=$(whiptail --title "Courses" --inputbox \
-"Path ON THIS PROXMOX HOST to your downloaded courses.
-Bind-mounted read-only at $MEDIA_CT. Leave blank to add later." 11 72 "$MEDIA_HOST" 3>&1 1>&2 2>&3) || MEDIA_HOST=""
     LECTURN_AUTH_PASS=$(whiptail --title "Password" --passwordbox \
 "Admin password (login user: admin)" 8 60 "$LECTURN_AUTH_PASS" 3>&1 1>&2 2>&3) || die "cancelled"
   fi
@@ -93,7 +88,8 @@ Bind-mounted read-only at $MEDIA_CT. Leave blank to add later." 11 72 "$MEDIA_HO
   Cores: $CORES   RAM: ${RAM_MB}MB   Disk: ${DISK_GB}GB
   Storage: $STORAGE   Bridge: $BRIDGE
   Unprivileged: $([ "$UNPRIVILEGED" = 1 ] && echo yes || echo no)
-  Courses: ${MEDIA_HOST:-<none — mount later>}" 16 64 || die "cancelled"
+
+You'll add your course folders afterwards in the web UI." 16 64 || die "cancelled"
 else
   msg "Non-interactive — using defaults/env (CTID=$CTID, storage=$STORAGE)."
 fi
@@ -116,11 +112,6 @@ pct create "$CTID" "$TPL" \
   -rootfs "$STORAGE:${DISK_GB}" -net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" \
   -features nesting=1 -unprivileged "$UNPRIVILEGED" -onboot 1 >/dev/null
 
-if [ -n "$MEDIA_HOST" ]; then
-  msg "Bind-mounting $MEDIA_HOST → $MEDIA_CT (read-only)…"
-  pct set "$CTID" -mp0 "$MEDIA_HOST,mp=$MEDIA_CT,ro=1"
-fi
-
 msg "Starting container…"
 pct start "$CTID"
 for _ in $(seq 1 30); do pct exec "$CTID" -- test -e /etc/resolv.conf 2>/dev/null && break; sleep 1; done
@@ -134,17 +125,15 @@ rm -f /tmp/lecturn-install.sh
 
 msg "Installing Lecturn (clones repo + builds frontend; a few minutes)…"
 pct exec "$CTID" -- env \
-  LECTURN_REPO="$REPO" MEDIA_CT="$MEDIA_CT" LECTURN_AUTH_PASS="$LECTURN_AUTH_PASS" \
+  LECTURN_REPO="$REPO" LECTURN_AUTH_PASS="$LECTURN_AUTH_PASS" \
   bash /root/lecturn-install.sh
 
 IP=$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}')
 echo
 ok "Done!  Lecturn → http://${IP:-<ct-ip>}:8000"
 ok "Login:  admin / $LECTURN_AUTH_PASS"
-if [ -z "$MEDIA_HOST" ]; then
-  echo
-  msg "No courses mounted yet. Put them on this host, then:"
-  msg "  pct set $CTID -mp0 /your/host/path,mp=$MEDIA_CT,ro=1 && pct reboot $CTID"
-elif [ "$UNPRIVILEGED" = "1" ]; then
-  msg "If courses don't appear (unprivileged perms): chmod -R o+rX '$MEDIA_HOST' on the host, then: pct reboot $CTID"
-fi
+echo
+msg "Add your courses in the web UI → Libraries. First make them visible to the CT, e.g.:"
+msg "  pct set $CTID -mp0 /your/host/courses,mp=/mnt/courses,ro=1 && pct reboot $CTID"
+msg "then add the path /mnt/courses in the UI."
+[ "$UNPRIVILEGED" = "1" ] && msg "(unprivileged: if the folder isn't readable inside the CT, run 'chmod -R o+rX' on it on the host.)"

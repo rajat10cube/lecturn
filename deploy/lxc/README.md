@@ -13,7 +13,8 @@ runnable on *your* host today.
 ## Quick start (on the Proxmox host, as root)
 
 **Interactive one-liner** (recommended) — auto-picks the next CT ID and prompts
-for resources + your courses path, like the community-scripts:
+for resources (Default/Advanced), like the community-scripts. You add your course
+folders afterwards in the web UI:
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/ct/lecturn.sh)"
 ```
@@ -30,41 +31,38 @@ git clone https://github.com/rajat10cube/lecturn && cd lecturn
 MEDIA_HOST=/mnt/pool/courses CTID=120 LECTURN_REPO= bash deploy/lxc/create-lxc.sh
 ```
 
-That creates a Debian 12 LXC, mounts your courses read-only at
-`/libraries/courses`, builds + installs Lecturn, and starts it on
-`http://<container-ip>:8000`.
+That creates a Debian 12 LXC, builds + installs Lecturn, and starts it on
+`http://<container-ip>:8000`. You then add course folders in the app (below).
+(`create-lxc.sh` can optionally pre-mount a `MEDIA_HOST`; `ct/lecturn.sh` does not.)
 
 ### Knobs (env vars for `create-lxc.sh`)
 | Var | Default | Meaning |
 |-----|---------|---------|
 | `CTID` | *(required)* | unused container id, e.g. `120` |
-| `MEDIA_HOST` | – | host path to your courses (bind-mounted RO) |
-| `MEDIA_CT` | `/libraries/courses` | mount point inside the CT (matches `lecturn.yaml`) |
-| `HOSTNAME` | `lecturn` | container hostname |
-| `CORES` / `RAM_MB` / `DISK_GB` | `2` / `1024` / `8` | resources |
+| `MEDIA_HOST` | – | optional: host path to pre-mount read-only into the CT |
+| `MEDIA_CT` | `/libraries/courses` | mount point inside the CT |
+| `CT_HOSTNAME` | `lecturn` | container hostname |
+| `CORES` / `RAM_MB` / `DISK_GB` | `2` / `2048` / `10` | resources |
 | `BRIDGE` / `STORAGE` | `vmbr0` / `local-lvm` | network / rootfs storage |
 | `UNPRIVILEGED` | `1` | `0` = privileged (simplest for media perms) |
-| `LECTURN_REPO` | – | clone from git instead of copying local source |
-| `LECTURN_AUTH_PASS` | `change-me` | Basic-auth password |
+| `LECTURN_REPO` | (repo) | set empty to copy local source instead of cloning |
+| `LECTURN_AUTH_PASS` | random | Basic-auth password |
 
-## Media access & permissions (important)
-The container reads your courses via a **read-only bind mount** (`pct set -mp0`).
-In an **unprivileged** container (the default), host files must be readable by the
-mapped UID. If courses don't show up:
-- on the host: `chmod -R o+rX /mnt/pool/courses`, **or**
-- recreate with `UNPRIVILEGED=0` (privileged container).
+## Adding your courses (in the app, like Jellyfin)
+Courses are added from the **web UI → Libraries**. Two steps:
 
-Multiple libraries? Add more mounts and list them in `lecturn.yaml`:
-```bash
-pct set 120 -mp1 /mnt/pool/udemy,mp=/libraries/udemy,ro=1
-```
-```yaml
-# /opt/lecturn/lecturn.yaml  (inside the CT)
-libraries:
-  - path: /libraries/courses
-  - path: /libraries/udemy
-```
-then `pct exec 120 -- systemctl restart lecturn`.
+1. **Make the folder visible to the container** — bind-mount your host courses
+   into the CT (read-only), then reboot it:
+   ```bash
+   pct set <CTID> -mp0 /mnt/pool/courses,mp=/mnt/courses,ro=1
+   pct reboot <CTID>
+   ```
+   Add more sources with `-mp1`, `-mp2`, …
+2. **Add it in Lecturn** — open the app → **Libraries** → type or Browse to
+   `/mnt/courses` → it scans automatically. Repeat for each folder.
+
+**Unprivileged note:** if a mounted folder isn't readable inside the CT, on the
+host run `chmod -R o+rX /mnt/pool/courses` (or recreate with `UNPRIVILEGED=0`).
 
 ## Day-2
 

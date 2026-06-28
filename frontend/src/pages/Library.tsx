@@ -69,6 +69,7 @@ export default function Library() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        <Link to="/settings" className="chip">Libraries</Link>
       </header>
 
       {isLoading && <p className="note">Loading library…</p>}
@@ -127,11 +128,18 @@ export default function Library() {
             </div>
           )}
 
-          <div className="grid">
-            {browse.map((c) => (
-              <Card key={c.id} c={c} />
-            ))}
-          </div>
+          {data && data.courses.length === 0 ? (
+            <p className="note">
+              No courses yet. <Link to="/settings">Add a library →</Link> (point it at a folder
+              of your downloaded courses).
+            </p>
+          ) : (
+            <div className="grid">
+              {browse.map((c) => (
+                <Card key={c.id} c={c} />
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>

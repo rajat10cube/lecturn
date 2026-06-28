@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from . import __version__
 from .config import get_settings
 from .db import init_db
-from .routers import admin, courses, health, lectures, media, progress, search
+from .routers import admin, courses, health, lectures, libraries, media, progress, search
 
 settings = get_settings()
 
@@ -21,9 +21,10 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
-    if settings.scan_on_start and settings.libraries():
-        from .scanner.service import run_scan
+    from .scanner.service import run_scan, seed_libraries_from_config
 
+    seed_libraries_from_config()  # first-run import from config/env, if any
+    if settings.scan_on_start:
         # don't block startup; scan in a worker thread
         asyncio.get_event_loop().run_in_executor(None, run_scan)
     yield
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(courses.router, prefix="/api")
     app.include_router(lectures.router, prefix="/api")
+    app.include_router(libraries.router, prefix="/api")
     app.include_router(media.router, prefix="/api")
     app.include_router(progress.router, prefix="/api")
     app.include_router(search.router, prefix="/api")

@@ -1,7 +1,8 @@
-"""Scan orchestration: walk every configured library and sync into the DB.
+"""Scan orchestration: walk every DB-registered library and sync into the DB.
 
-Single-writer (a lock prevents concurrent scans). Runs in a worker thread when
-called from a sync route or via run_in_executor.
+Libraries are managed at runtime (added/removed via the API, like Jellyfin).
+On first run, any libraries from the optional config/env are seeded into the DB.
+Single-writer (a lock prevents concurrent scans).
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ import threading
 import time
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ..config import get_settings
 from ..db import SessionLocal
@@ -26,35 +27,37 @@ def scan_status() -> dict:
     return dict(_status)
 
 
-def run_scan() -> dict:
+def seed_libraries_from_config() -> None:
+    """If no libraries exist yet, import any from config/env (first-run convenience)."""
     settings = get_settings()
+    with SessionLocal() as db:
+        if db.scalar(select(func.count()).select_from(Library)):
+            return
+        for cfg in settings.libraries():
+            db.add(Library(path=cfg.path, name=cfg.name,
+                           group_depth=(-1 if isinstance(cfg.group_depth, str) else cfg.group_depth)))
+        db.commit()
+
+
+def run_scan() -> dict:
     if not _lock.acquire(blocking=False):
         return {"skipped": "scan already running"}
 
     _status["running"] = True
     t0 = time.time()
-    summary = {"libraries": 0, "courses": 0, "lectures": 0, "skipped_roots": []}
+    settings = get_settings()
+    summary = {"libraries": 0, "courses": 0, "lectures": 0, "skipped": []}
     try:
         with SessionLocal() as db:
-            for cfg in settings.libraries():
-                root = Path(cfg.path)
+            for lib in db.scalars(select(Library)).all():
+                root = Path(lib.path)
                 if not root.is_dir():
-                    summary["skipped_roots"].append(cfg.path)
+                    summary["skipped"].append(lib.path)
                     continue
 
-                group_depth = cfg.group_depth
-                if isinstance(group_depth, str):  # "auto"
-                    group_depth = detect_group_depth(root)
-
-                lib = db.scalar(select(Library).where(Library.path == cfg.path))
-                if lib is None:
-                    lib = Library(path=cfg.path, group_depth=group_depth, name=cfg.name)
-                    db.add(lib)
-                    db.flush()
-                else:
-                    lib.group_depth = group_depth
+                group_depth = lib.group_depth if lib.group_depth is not None and lib.group_depth >= 0 \
+                    else detect_group_depth(root)
                 summary["libraries"] += 1
-                summary.setdefault("group_depths", {})[cfg.path] = group_depth
 
                 seen: set[str] = set()
                 for course_path, category in iter_course_roots(root, group_depth):
@@ -74,7 +77,6 @@ def run_scan() -> dict:
 
                 db.commit()
 
-            # refresh the full-text search index from the freshly scanned rows
             from ..search import rebuild_index
 
             rebuild_index(db.connection())

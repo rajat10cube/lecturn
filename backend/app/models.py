@@ -25,7 +25,7 @@ class Library(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     path: Mapped[str] = mapped_column(String, unique=True)
-    group_depth: Mapped[int] = mapped_column(Integer, default=0)
+    group_depth: Mapped[int] = mapped_column(Integer, default=-1)  # -1 = auto-detect
     name: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
@@ -38,7 +38,9 @@ class Course(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     author: Mapped[str | None] = mapped_column(String, nullable=True)
     category: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    library_id: Mapped[int | None] = mapped_column(ForeignKey("library.id"), nullable=True)
+    library_id: Mapped[int | None] = mapped_column(
+        ForeignKey("library.id", ondelete="CASCADE"), nullable=True
+    )
     path: Mapped[str] = mapped_column(String, unique=True)
     cover_path: Mapped[str | None] = mapped_column(String, nullable=True)
     position: Mapped[int] = mapped_column(Integer, default=0)
@@ -61,7 +63,7 @@ class Section(Base):
     __table_args__ = (UniqueConstraint("course_id", "path", name="uq_section_course_path"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("course.id"))
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(String)
     path: Mapped[str] = mapped_column(String)
     position: Mapped[int] = mapped_column(Integer, default=0)
@@ -76,8 +78,8 @@ class Lecture(Base):
     __tablename__ = "lecture"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("course.id"), index=True)
-    section_id: Mapped[int] = mapped_column(ForeignKey("section.id"))
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    section_id: Mapped[int] = mapped_column(ForeignKey("section.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(String)
     path: Mapped[str] = mapped_column(String, unique=True)
     kind: Mapped[str] = mapped_column(String)  # video|audio|document
@@ -97,9 +99,13 @@ class Attachment(Base):
     __tablename__ = "attachment"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("course.id"), index=True)
-    section_id: Mapped[int | None] = mapped_column(ForeignKey("section.id"), nullable=True)
-    lecture_id: Mapped[int | None] = mapped_column(ForeignKey("lecture.id"), nullable=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    section_id: Mapped[int | None] = mapped_column(
+        ForeignKey("section.id", ondelete="CASCADE"), nullable=True
+    )
+    lecture_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lecture.id", ondelete="CASCADE"), nullable=True
+    )
     title: Mapped[str] = mapped_column(String)
     path: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String, default="resource")  # resource|bundle|link
@@ -112,7 +118,7 @@ class Progress(Base):
     __table_args__ = (UniqueConstraint("lecture_id", name="uq_progress_lecture"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    lecture_id: Mapped[int] = mapped_column(ForeignKey("lecture.id"))
+    lecture_id: Mapped[int] = mapped_column(ForeignKey("lecture.id", ondelete="CASCADE"))
     position_sec: Mapped[float] = mapped_column(Float, default=0.0)
     duration_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)

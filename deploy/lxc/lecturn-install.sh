@@ -16,7 +16,6 @@ PORT="${PORT:-8000}"
 NODE_MAJOR="${NODE_MAJOR:-22}"
 LECTURN_REPO="${LECTURN_REPO:-}"
 LECTURN_REF="${LECTURN_REF:-main}"
-MEDIA_CT="${MEDIA_CT:-/libraries/courses}"
 AUTH_USER="${LECTURN_AUTH_USER:-admin}"
 AUTH_PASS="${LECTURN_AUTH_PASS:-change-me}"
 ENV_FILE="$DATA_DIR/lecturn.env"
@@ -67,11 +66,12 @@ mkdir -p "$DATA_DIR"
 
 # --- persistent config + env (written once; survives updates) ---
 if [ ! -f "$CONFIG_FILE" ]; then
-  msg "Writing default library config ($MEDIA_CT)…"
-  cat > "$CONFIG_FILE" <<YAML
-# group_depth defaults to "auto" — adapts to your folder layout.
-libraries:
-  - path: $MEDIA_CT
+  msg "Writing initial config (add libraries from the web UI)…"
+  cat > "$CONFIG_FILE" <<'YAML'
+# Add course folders from the web UI (Libraries). You may also list them here —
+# entries are imported into the database on first run only.
+# group_depth defaults to "auto" (adapts to flat or provider-grouped layouts).
+libraries: []
 YAML
 fi
 if [ ! -f "$ENV_FILE" ]; then
@@ -115,4 +115,4 @@ SHOWPASS="$(sed -n 's/^LECTURN_AUTH_PASS=//p' "$ENV_FILE")"
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 msg "Done ✔  Lecturn → http://${IP:-<container-ip>}:$PORT"
 msg "Login: $AUTH_USER / $SHOWPASS"
-msg "Courses mount point inside the CT: $MEDIA_CT"
+msg "Add your course folders in the web UI → Libraries."

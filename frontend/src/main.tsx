@@ -5,6 +5,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import CoursePage from "./pages/CoursePage";
 import Library from "./pages/Library";
+import Settings from "./pages/Settings";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Library />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/course/:slug" element={<CoursePage />} />
         </Routes>
       </BrowserRouter>

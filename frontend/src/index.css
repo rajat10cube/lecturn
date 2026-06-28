@@ -170,6 +170,21 @@ code { background: var(--line); padding: 1px 6px; border-radius: 6px; font-size:
 .mark.done { background: var(--ok); border-color: var(--ok); }
 .mark.partial { border-color: var(--accent); }
 
+/* ---------- settings / libraries ---------- */
+.addbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
+.addbar .search { flex: 1 1 320px; }
+.addbar .nameinput { flex: 0 1 180px; }
+.browser {
+  margin-top: 16px; padding: 14px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 12px;
+}
+.linklike {
+  background: none; border: 0; color: var(--text); cursor: pointer;
+  font-size: 0.92rem; padding: 0; text-align: left;
+}
+.linklike:hover { color: var(--accent); }
+.ok-text { color: var(--ok); }
+
 /* ---------- search results ---------- */
 .results { list-style: none; padding: 0; margin: 0 0 24px; }
 .results li a {

@@ -19,6 +19,8 @@ server.
 - **Streaming** — HTTP-range (path-traversal-guarded) `.mp4` direct play, `.ts`
   via `mpegts.js`, on-the-fly `.mkv` remux (`ffmpeg -c copy`), SRT→WebVTT
   subtitles.
+- **Libraries** — add/remove course folders from the web UI (like Jellyfin),
+  with a built-in folder browser; auto-scans on add.
 - **Library UI** — searchable grid (SQLite FTS5) across courses *and* lessons
   with a provider filter; course player with resume + autoplay-next; in-app
   PDF/HTML viewing.
@@ -76,9 +78,9 @@ cp lecturn.yaml.example lecturn.yaml     # edit library paths (group_depth: auto
 docker compose up --build                # http://<host>:8800
 ```
 
-**Proxmox LXC (no Docker)** — run on the PVE host; it's interactive (auto-picks
-the CT ID, prompts for resources + your courses path) and installs Lecturn as a
-`systemd` service:
+**Proxmox LXC (no Docker)** — run on the PVE host; it's interactive
+(Default/Advanced, auto-picks the CT ID) and installs Lecturn as a `systemd`
+service. You add your course folders afterwards in the app:
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/ct/lecturn.sh)"
 ```
