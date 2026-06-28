@@ -12,13 +12,19 @@ runnable on *your* host today.
 
 ## Quick start (on the Proxmox host, as root)
 
-**One-liner** — fetches everything from GitHub, creates the LXC, installs Lecturn:
+**Interactive one-liner** (recommended) — auto-picks the next CT ID and prompts
+for resources + your courses path, like the community-scripts:
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/ct/lecturn.sh)"
+```
+
+**Non-interactive / scriptable** — drive `create-lxc.sh` with env vars:
 ```bash
 MEDIA_HOST=/mnt/pool/courses CTID=120 LECTURN_AUTH_PASS='supersecret' \
   bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/deploy/lxc/create-lxc.sh)"
 ```
 
-Or from a local clone (copies your local source instead of cloning the repo):
+From a local clone (copies your local source instead of cloning the repo):
 ```bash
 git clone https://github.com/rajat10cube/lecturn && cd lecturn
 MEDIA_HOST=/mnt/pool/courses CTID=120 LECTURN_REPO= bash deploy/lxc/create-lxc.sh

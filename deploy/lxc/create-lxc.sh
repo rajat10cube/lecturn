@@ -11,7 +11,7 @@
 set -euo pipefail
 
 CTID="${CTID:?Set CTID=<unused container id>, e.g. CTID=120}"
-HOSTNAME="${HOSTNAME:-lecturn}"
+CT_HOSTNAME="${CT_HOSTNAME:-lecturn}"   # note: not HOSTNAME (shell builtin = the PVE host's name)
 CORES="${CORES:-2}"
 RAM_MB="${RAM_MB:-1024}"
 DISK_GB="${DISK_GB:-8}"
@@ -46,9 +46,9 @@ fi
 msg "Template: $TPL"
 
 # --- create + start container ---
-msg "Creating CT $CTID ($HOSTNAME: ${CORES}c/${RAM_MB}MB/${DISK_GB}GB)…"
+msg "Creating CT $CTID ($CT_HOSTNAME: ${CORES}c/${RAM_MB}MB/${DISK_GB}GB)…"
 pct create "$CTID" "$TPL" \
-  -hostname "$HOSTNAME" \
+  -hostname "$CT_HOSTNAME" \
   -cores "$CORES" -memory "$RAM_MB" -swap 512 \
   -rootfs "$STORAGE:${DISK_GB}" \
   -net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" \

@@ -76,10 +76,11 @@ cp lecturn.yaml.example lecturn.yaml     # edit library paths (group_depth: auto
 docker compose up --build                # http://<host>:8800
 ```
 
-**Proxmox LXC (no Docker)** — one command on the host creates a Debian 12 LXC,
-bind-mounts your courses, and installs Lecturn as a `systemd` service:
+**Proxmox LXC (no Docker)** — run on the PVE host; it's interactive (auto-picks
+the CT ID, prompts for resources + your courses path) and installs Lecturn as a
+`systemd` service:
 ```bash
-MEDIA_HOST=/mnt/pool/courses CTID=120 bash deploy/lxc/create-lxc.sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/rajat10cube/lecturn/main/ct/lecturn.sh)"
 ```
 See **[deploy/lxc/README.md](deploy/lxc/README.md)**. Reverse proxy:
 **[docs/DEPLOY.md](docs/DEPLOY.md)**. Mount course libraries read-only; app state
