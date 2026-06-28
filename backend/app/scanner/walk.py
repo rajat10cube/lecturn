@@ -51,11 +51,12 @@ class SAttachment:
 class SCourse:
     rel_path: str          # relative to the library root (identity)
     title: str
-    category: str | None
+    category: str | None   # nearest grouping folder (e.g. topic)
     cover_rel: str | None
     sections: list[SSection]
     lectures: list[SLecture]
     attachments: list[SAttachment] = field(default_factory=list)
+    provider: str | None = None  # outermost grouping folder (e.g. Udemy)
 
 
 def _rel(p: Path, base: Path) -> str:
@@ -172,16 +173,20 @@ def _classify_dir(d: Path, cap: int) -> str:
     return "empty"
 
 
-def discover_courses(lib_root: Path, cap: int = 6) -> Iterator[tuple[Path, str | None]]:
+def discover_courses(lib_root: Path, cap: int = 6) -> Iterator[tuple[Path, str | None, str | None]]:
     """Find course folders under a library root, descending grouping folders of any
-    depth (e.g. Udemy / Unreal Engine 5 / <course>). Category = the nearest grouping
-    folder name. Handles single-child wrapper folders as one course.
+    depth (e.g. Udemy / Unreal Engine 5 / <course>).
+
+    Yields ``(course_dir, provider, category)`` where category = the nearest
+    grouping folder (e.g. topic) and provider = the outermost grouping folder
+    (e.g. Udemy), or None when the course sits only one grouping level deep.
+    Handles single-child wrapper folders as one course.
     """
     if _has_direct_lecture(lib_root):
-        yield lib_root, None
+        yield lib_root, None, None
         return
     for c in _content_subdirs(lib_root):
-        yield from _discover(c, None, cap)
+        yield from _discover(c, None, None, cap)
 
 
 def _looks_like_wrapper(outer: Path, inner: Path) -> bool:
@@ -191,19 +196,27 @@ def _looks_like_wrapper(outer: Path, inner: Path) -> bool:
     return bool(a) and bool(b) and (a in b or b in a)
 
 
-def _discover(d: Path, category: str | None, cap: int) -> Iterator[tuple[Path, str | None]]:
+def _provider_of(top: str | None, category: str | None) -> str | None:
+    """The outermost group counts as a provider only when it's above the topic."""
+    return top if (top is not None and top != category) else None
+
+
+def _discover(
+    d: Path, top: str | None, category: str | None, cap: int
+) -> Iterator[tuple[Path, str | None, str | None]]:
     cls = _classify_dir(d, cap)
     if cls == "course":
-        yield d, category
+        yield d, _provider_of(top, category), category
     elif cls == "group":
         kids = _content_subdirs(d)
         # a duplicate-named single wrapper is one course (walk collapses it); a single
         # *distinct* child is a real grouping folder (e.g. a provider with one course)
         if len(kids) == 1 and _classify_dir(kids[0], cap) == "course" and _looks_like_wrapper(d, kids[0]):
-            yield d, category
+            yield d, _provider_of(top, category), category
         else:
+            new_top = top if top is not None else d.name
             for k in kids:
-                yield from _discover(k, d.name, cap)
+                yield from _discover(k, new_top, d.name, cap)
     # "empty" -> skip
 
 
@@ -234,6 +247,7 @@ def walk_course(
     category: str | None,
     section_max_depth: int,
     min_video_bytes: int,
+    provider: str | None = None,
 ) -> SCourse | None:
     content_root, bundles = normalize_root(course_path)
 
@@ -342,4 +356,5 @@ def walk_course(
         sections=ordered_sections,
         lectures=lectures,
         attachments=attachments,
+        provider=provider,
     )

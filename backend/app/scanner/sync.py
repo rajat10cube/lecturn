@@ -33,6 +33,7 @@ def sync_course(db: Session, library_id: int, sc: SCourse) -> Course:
 
     course.title = sc.title
     course.category = sc.category
+    course.provider = sc.provider
     course.library_id = library_id
     course.cover_path = sc.cover_rel
     course.missing = False

@@ -60,6 +60,7 @@ class Course(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     author: Mapped[str | None] = mapped_column(String, nullable=True)
     category: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    provider: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     library_id: Mapped[int | None] = mapped_column(
         ForeignKey("library.id", ondelete="CASCADE"), nullable=True
     )

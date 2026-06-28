@@ -58,14 +58,17 @@ def _scan_library(db, settings, lib: Library) -> None:
 
     # group_depth >= 0 is an explicit override; otherwise auto-discover any nesting depth
     if lib.group_depth is not None and lib.group_depth >= 0:
-        roots = iter_course_roots(root, lib.group_depth)
+        roots = ((cp, None, cat) for cp, cat in iter_course_roots(root, lib.group_depth))
     else:
         roots = discover_courses(root)
 
     seen: set[str] = set()
     found = 0
-    for course_path, category in roots:
-        sc = walk_course(course_path, root, category, settings.section_max_depth, settings.min_video_bytes)
+    for course_path, provider, category in roots:
+        sc = walk_course(
+            course_path, root, category, settings.section_max_depth,
+            settings.min_video_bytes, provider=provider,
+        )
         if sc is None:
             continue
         sync_course(db, lib.id, sc)

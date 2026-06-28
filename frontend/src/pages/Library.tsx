@@ -150,6 +150,7 @@ export default function Library() {
   const { data, isLoading, isError } = useQuery({ queryKey: ["courses"], queryFn: getCourses });
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
+  const [provider, setProvider] = useState("All");
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState("title");
   const query = q.trim();
@@ -164,8 +165,13 @@ export default function Library() {
   });
 
   const browse = useMemo(
-    () => (data?.courses ?? []).filter((c) => cat === "All" || c.category === cat),
-    [data, cat],
+    () =>
+      (data?.courses ?? []).filter(
+        (c) =>
+          (cat === "All" || c.category === cat) &&
+          (provider === "All" || c.provider === provider),
+      ),
+    [data, cat, provider],
   );
 
   const view = useMemo(() => {
@@ -280,6 +286,20 @@ export default function Library() {
                   </Button>
                 ))}
                 <div className="ml-auto flex items-center gap-2">
+                  {(data.providers ?? []).length > 0 && (
+                    <select
+                      className={selectCls}
+                      value={provider}
+                      onChange={(e) => setProvider(e.target.value)}
+                    >
+                      <option value="All">All providers</option>
+                      {(data.providers ?? []).map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <select className={selectCls} value={status} onChange={(e) => setStatus(e.target.value)}>
                     <option value="all">All courses</option>
                     <option value="inprogress">In progress</option>

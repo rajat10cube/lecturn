@@ -13,6 +13,7 @@ export interface CourseCard {
   slug: string;
   title: string;
   category: string | null;
+  provider: string | null;
   cover: string | null;
   lectureCount: number;
   completedCount: number;
@@ -23,6 +24,7 @@ export interface CourseCard {
 export interface LibraryResponse {
   courses: CourseCard[];
   categories: string[];
+  providers: string[];
 }
 
 export type Playback = "native" | "mpegts" | "remux" | "document";
@@ -51,6 +53,7 @@ export interface CourseDetail {
   slug: string;
   title: string;
   category: string | null;
+  provider: string | null;
   cover: string | null;
   lectureCount: number;
   completedCount: number;

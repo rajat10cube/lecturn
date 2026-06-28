@@ -75,6 +75,7 @@ def list_courses(user: User = Depends(require_user), db: Session = Depends(get_d
             "slug": c.slug,
             "title": c.title,
             "category": c.category,
+            "provider": c.provider,
             "cover": _cover_url(c, lib_paths.get(c.library_id)),
             "lectureCount": c.lecture_count,
             "completedCount": completed_map.get(c.id, 0),
@@ -84,7 +85,8 @@ def list_courses(user: User = Depends(require_user), db: Session = Depends(get_d
         for c in rows
     ]
     categories = sorted({c["category"] for c in courses if c["category"]})
-    return {"courses": courses, "categories": categories}
+    providers = sorted({c["provider"] for c in courses if c["provider"]})
+    return {"courses": courses, "categories": categories, "providers": providers}
 
 
 @router.get("/{slug}")
@@ -142,6 +144,7 @@ def get_course(
         "slug": c.slug,
         "title": c.title,
         "category": c.category,
+        "provider": c.provider,
         "cover": _cover_url(c, lib.path if lib else None),
         "lectureCount": c.lecture_count,
         "completedCount": sum(1 for p in prog.values() if p.completed),

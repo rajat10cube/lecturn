@@ -67,6 +67,10 @@ def init_db() -> None:
             conn.exec_driver_sql(
                 'ALTER TABLE "user" ADD COLUMN all_libraries BOOLEAN NOT NULL DEFAULT 1'
             )
+        # add course.provider to pre-existing DBs
+        cinfo = conn.exec_driver_sql("PRAGMA table_info(course)").fetchall()
+        if cinfo and not any(row[1] == "provider" for row in cinfo):
+            conn.exec_driver_sql("ALTER TABLE course ADD COLUMN provider VARCHAR")
         conn.exec_driver_sql(FTS_DDL)
 
     from .auth import ensure_admin  # seed the first admin from configured creds

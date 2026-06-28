@@ -33,6 +33,7 @@ function card(over: Partial<CourseCard>): CourseCard {
     slug: `s-${Math.random()}`,
     title: "Untitled",
     category: null,
+    provider: null,
     cover: null,
     lectureCount: 5,
     completedCount: 0,
@@ -94,6 +95,25 @@ describe("Library page", () => {
 
     expect(screen.queryByText("Udemy Course")).not.toBeInTheDocument();
     expect(screen.getByText("Skillshare Course")).toBeInTheDocument();
+  });
+
+  it("filters by provider independently of topic", async () => {
+    getCourses.mockResolvedValue({
+      courses: [
+        card({ title: "Blender (Udemy)", provider: "Udemy", category: "3D Art" }),
+        card({ title: "ZBrush (Gumroad)", provider: "Gumroad", category: "3D Art" }),
+      ],
+      categories: ["3D Art"],
+      providers: ["Udemy", "Gumroad"],
+    });
+    renderLibrary();
+    await screen.findByText("Blender (Udemy)");
+
+    const providerSelect = screen.getAllByRole("combobox")[0];
+    await userEvent.selectOptions(providerSelect, "Gumroad");
+
+    await waitFor(() => expect(screen.queryByText("Blender (Udemy)")).not.toBeInTheDocument());
+    expect(screen.getByText("ZBrush (Gumroad)")).toBeInTheDocument();
   });
 
   it("resets a course's progress from the options menu (with confirmation)", async () => {
