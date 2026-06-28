@@ -50,6 +50,27 @@ def test_notes_crud_and_per_user(tmp_path):
     assert c.get("/api/notes", params={"lecture": lid}, auth=ADMIN).json() == []
 
 
+def test_edit_note(tmp_path):
+    lid = _seed_lecture(tmp_path)
+    c = TestClient(app)
+    nid = c.post("/api/notes", json={"lecture_id": lid, "text": "draft"}, auth=ADMIN).json()["id"]
+    r = c.put(f"/api/notes/{nid}", json={"text": "final"}, auth=ADMIN)
+    assert r.status_code == 200 and r.json()["text"] == "final"
+    assert c.get("/api/notes", params={"lecture": lid}, auth=ADMIN).json()[0]["text"] == "final"
+
+
+def test_blank_note_is_rejected(tmp_path):
+    lid = _seed_lecture(tmp_path)
+    c = TestClient(app)
+    assert c.post("/api/notes", json={"lecture_id": lid, "text": "   "}, auth=ADMIN).status_code == 400
+    nid = c.post("/api/notes", json={"lecture_id": lid, "text": "ok"}, auth=ADMIN).json()["id"]
+    assert c.put(f"/api/notes/{nid}", json={"text": "  "}, auth=ADMIN).status_code == 400
+
+
+def test_edit_missing_note_is_404(tmp_path):
+    assert TestClient(app).put("/api/notes/99999999", json={"text": "x"}, auth=ADMIN).status_code == 404
+
+
 def test_notes_require_auth(tmp_path):
     lid = _seed_lecture(tmp_path)
     assert TestClient(app).get("/api/notes", params={"lecture": lid}).status_code == 401

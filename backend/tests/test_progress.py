@@ -60,6 +60,24 @@ def test_completion_is_sticky(tmp_path):
     assert r.json()["completed"] is True
 
 
+def test_mark_incomplete_overrides_auto_completion(tmp_path):
+    _slug, l1, _l2 = _seed(tmp_path)
+    # auto-completes by watch ratio
+    assert client.put(f"/api/progress/{l1}", json={"position_sec": 95, "duration_sec": 100}, auth=AUTH).json()["completed"] is True
+    # explicit completed:false un-completes it (manual "mark as not watched")
+    r = client.put(f"/api/progress/{l1}", json={"position_sec": 95, "duration_sec": 100, "completed": False}, auth=AUTH)
+    assert r.json()["completed"] is False
+    d = client.get(f"/api/courses/{_slug}", auth=AUTH).json()
+    assert d["completedCount"] == 0
+
+
+def test_mark_complete_without_duration(tmp_path):
+    _slug, l1, _l2 = _seed(tmp_path)
+    # no duration known, but an explicit completed:true still marks it done
+    r = client.put(f"/api/progress/{l1}", json={"position_sec": 1, "completed": True}, auth=AUTH)
+    assert r.json()["completed"] is True
+
+
 def test_progress_requires_auth(tmp_path):
     _slug, l1, _l2 = _seed(tmp_path)
     assert client.put(f"/api/progress/{l1}", json={"position_sec": 1}).status_code == 401
