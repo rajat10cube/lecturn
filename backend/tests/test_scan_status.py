@@ -57,6 +57,31 @@ def test_bad_library_is_isolated_and_good_one_still_scans(tmp_path):
     assert st["librariesTotal"] >= 2
 
 
+def test_library_name_becomes_provider(tmp_path):
+    # one library per provider: its name is used as the provider, the inner
+    # folder (3D Art) stays the topic/category
+    root = tmp_path / "udemy-dl"
+    lec = root / "3D Art" / "Blender Course" / "01 - Intro" / "001 a.mp4"
+    lec.parent.mkdir(parents=True, exist_ok=True)
+    lec.write_bytes(b"x" * 4096)
+
+    with SessionLocal() as db:
+        db.add(Library(path=str(root), name="Udemy"))
+        db.commit()
+
+    run_scan()
+
+    with SessionLocal() as db:
+        c = db.scalar(
+            select(Course)
+            .join(Library, Library.id == Course.library_id)
+            .where(Library.path == str(root), Course.missing.is_(False))
+        )
+        assert c is not None
+        assert c.provider == "Udemy"
+        assert c.category == "3D Art"
+
+
 def test_empty_library_reports_no_courses_found(tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()

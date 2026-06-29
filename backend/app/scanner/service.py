@@ -71,6 +71,9 @@ def _scan_library(db, settings, lib: Library) -> None:
         )
         if sc is None:
             continue
+        # a named library *is* a provider (e.g. one library per Udemy/ArtStation);
+        # fall back to a folder-derived provider only when the library is unnamed
+        sc.provider = lib.name or sc.provider
         sync_course(db, lib.id, sc)
         seen.add(sc.rel_path)
         found += 1

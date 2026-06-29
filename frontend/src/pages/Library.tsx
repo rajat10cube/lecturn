@@ -286,7 +286,7 @@ export default function Library() {
                   </Button>
                 ))}
                 <div className="ml-auto flex items-center gap-2">
-                  {(data.providers ?? []).length > 0 && (
+                  {(data.providers ?? []).length >= 2 && (
                     <select
                       className={selectCls}
                       value={provider}

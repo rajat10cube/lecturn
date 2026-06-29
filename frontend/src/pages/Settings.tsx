@@ -355,8 +355,10 @@ function LibrariesTab() {
       <CardHeader>
         <CardTitle>Libraries</CardTitle>
         <CardDescription>
-          Folders that contain your courses. In an LXC/Docker setup, mount the host folder into the
-          container first, then add its in-container path here.
+          Folders that contain your courses — add one per provider (e.g. a Udemy folder, an
+          ArtStation folder). The library name becomes the course <strong>provider</strong> you can
+          filter by. In an LXC/Docker setup, mount the host folder into the container first, then add
+          its in-container path here.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -412,8 +414,13 @@ function LibrariesTab() {
             <Input value={path} onChange={(e) => setPath(e.target.value)} placeholder="/media/courses" />
           </div>
           <div className="space-y-1.5">
-            <Label>Name (optional)</Label>
-            <Input className="w-40" value={name} onChange={(e) => setName(e.target.value)} />
+            <Label>Provider / name</Label>
+            <Input
+              className="w-40"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="defaults to folder name"
+            />
           </div>
           <BrowseDialog onSelect={setPath} onAdd={(p) => void add(p)} />
           <Button onClick={() => void add(path)} disabled={busy}>
