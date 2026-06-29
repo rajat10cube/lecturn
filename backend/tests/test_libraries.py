@@ -58,6 +58,33 @@ def test_add_scan_then_delete_cascades(tmp_path):
     assert all(c["title"] != "CourseX" for c in courses)  # cascade removed its courses
 
 
+def test_has_categories_flag_controls_topic_layer(tmp_path):
+    # Provider/Category/Course/Section/lecture
+    f = tmp_path / "Blender" / "Donut Course" / "01 - Intro" / "001 a.mp4"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_bytes(b"x" * 1_100_000)
+
+    r = client.post(
+        "/api/libraries",
+        json={"path": str(tmp_path), "name": "Gumroad", "has_categories": True},
+        auth=AUTH,
+    )
+    assert r.status_code == 201
+    lib_id = r.json()["id"]
+    assert _wait_course("Donut Course"), "category-aware scan should find the course"
+
+    card = next(c for c in client.get("/api/courses", auth=AUTH).json()["courses"] if c["title"] == "Donut Course")
+    assert card["provider"] == "Gumroad"  # from the library name
+    assert card["category"] == "Blender"   # the category subfolder
+
+    libs = client.get("/api/libraries", auth=AUTH).json()
+    assert next(lib for lib in libs if lib["id"] == lib_id)["hasCategories"] is True
+
+    # flipping it off re-scans as flat -> the Blender folder becomes the course
+    assert client.put(f"/api/libraries/{lib_id}", json={"has_categories": False}, auth=AUTH).status_code == 200
+    assert _wait_course("Blender"), "flat re-scan should treat the top folder as the course"
+
+
 def test_add_invalid_path(tmp_path):
     r = client.post("/api/libraries", json={"path": str(tmp_path / "nope")}, auth=AUTH)
     assert r.status_code == 400

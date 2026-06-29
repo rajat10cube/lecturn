@@ -21,6 +21,13 @@ router = APIRouter(prefix="/libraries", tags=["libraries"], dependencies=[Depend
 class LibraryIn(BaseModel):
     path: str
     name: str | None = None
+    # True: the provider folder holds category subfolders (Blender, Unreal, …),
+    # each containing courses. False (default): courses sit directly inside.
+    has_categories: bool = False
+
+
+class LibraryUpdate(BaseModel):
+    has_categories: bool
 
 
 @router.get("")
@@ -38,6 +45,7 @@ def list_libraries(db: Session = Depends(get_db)) -> list[dict]:
             "id": lib.id,
             "path": lib.path,
             "name": lib.name,
+            "hasCategories": lib.group_depth == 1,
             "courseCount": counts.get(lib.id, 0),
             "accessible": Path(lib.path).is_dir(),
         }
@@ -59,12 +67,36 @@ def add_library(
     if db.scalar(select(Library).where(Library.path == path)):
         raise HTTPException(409, "That library already exists")
 
-    lib = Library(path=path, name=(body.name or "").strip() or Path(path).name, group_depth=-1)
+    lib = Library(
+        path=path,
+        name=(body.name or "").strip() or Path(path).name,
+        group_depth=(1 if body.has_categories else 0),
+    )
     db.add(lib)
     db.commit()
     db.refresh(lib)
     background.add_task(run_scan)  # scan the new folder in the background
     return {"id": lib.id, "path": lib.path, "name": lib.name}
+
+
+@router.put("/{library_id}")
+def update_library(
+    library_id: int, body: LibraryUpdate, background: BackgroundTasks, db: Session = Depends(get_db)
+) -> dict:
+    lib = db.get(Library, library_id)
+    if lib is None:
+        raise HTTPException(404, "Library not found")
+    new_depth = 1 if body.has_categories else 0
+    if new_depth != lib.group_depth:
+        # changing the category layer redraws course boundaries entirely (the same
+        # files belong to different courses), so rebuild from scratch rather than
+        # collide with the old courses' lecture rows (lecture.path is unique)
+        db.execute(delete(Course).where(Course.library_id == library_id))
+        lib.group_depth = new_depth
+    db.commit()
+    db.refresh(lib)
+    background.add_task(run_scan)  # re-discover courses at the new depth
+    return {"id": lib.id, "hasCategories": lib.group_depth == 1}
 
 
 @router.delete("/{library_id}", status_code=204)

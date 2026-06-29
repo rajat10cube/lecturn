@@ -43,6 +43,7 @@ import {
   rescanAll,
   resetUserPassword,
   setUserAccess,
+  updateLibrary,
   type BrowseResult,
   type LibraryItem,
   type UserRow,
@@ -324,6 +325,7 @@ function LibrariesTab() {
 
   const [path, setPath] = useState("/");
   const [name, setName] = useState("");
+  const [hasCats, setHasCats] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const add = async (p: string) => {
@@ -331,7 +333,7 @@ function LibrariesTab() {
     if (!t) return;
     setBusy(true);
     try {
-      await addLibrary(t, name.trim() || undefined);
+      await addLibrary(t, name.trim() || undefined, hasCats);
       setName("");
       toast.success(`Added “${t}” — scanning…`);
       refresh();
@@ -363,7 +365,7 @@ function LibrariesTab() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="divide-y rounded-lg border">
-          {(libs ?? []).map((l) => <LibraryRow key={l.id} lib={l} onRemoved={refresh} />)}
+          {(libs ?? []).map((l) => <LibraryRow key={l.id} lib={l} onChanged={refresh} />)}
           {libs && libs.length === 0 && (
             <p className="px-4 py-3 text-sm text-muted-foreground">No libraries yet — add one below.</p>
           )}
@@ -422,6 +424,10 @@ function LibrariesTab() {
               placeholder="defaults to folder name"
             />
           </div>
+          <label className="flex h-9 items-center gap-2 text-sm" title="Turn on if this provider's folder contains category subfolders (e.g. Blender, Unreal Engine), each holding courses. Leave off if courses sit directly inside.">
+            <Checkbox checked={hasCats} onCheckedChange={(v) => setHasCats(v === true)} />
+            Has category subfolders
+          </label>
           <BrowseDialog onSelect={setPath} onAdd={(p) => void add(p)} />
           <Button onClick={() => void add(path)} disabled={busy}>
             <Plus /> {busy ? "Adding…" : "Add"}
@@ -433,12 +439,22 @@ function LibrariesTab() {
   );
 }
 
-function LibraryRow({ lib, onRemoved }: { lib: LibraryItem; onRemoved: () => void }) {
+function LibraryRow({ lib, onChanged }: { lib: LibraryItem; onChanged: () => void }) {
   const doRemove = async () => {
     try {
       await deleteLibrary(lib.id);
-      onRemoved();
+      onChanged();
       toast.success("Library removed");
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  };
+  const toggleCats = async (v: boolean) => {
+    try {
+      await updateLibrary(lib.id, v);
+      onChanged();
+      toast.success(v ? "Categories enabled — rescanning…" : "Categories disabled — rescanning…");
+      setTimeout(onChanged, 2500);
     } catch (e) {
       toast.error(errMsg(e));
     }
@@ -452,6 +468,13 @@ function LibraryRow({ lib, onRemoved }: { lib: LibraryItem; onRemoved: () => voi
           {!lib.accessible && <span className="text-destructive"> · not accessible</span>}
         </div>
       </div>
+      <label
+        className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"
+        title="On: this provider has category subfolders (e.g. Blender, Unreal). Off: courses sit directly inside. Changing this triggers a rescan."
+      >
+        <Checkbox checked={lib.hasCategories} onCheckedChange={(v) => void toggleCats(v === true)} />
+        Has categories
+      </label>
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button variant="destructive" size="sm"><Trash2 /></Button>

@@ -209,6 +209,7 @@ export interface LibraryItem {
   id: number;
   path: string;
   name: string | null;
+  hasCategories: boolean;
   courseCount: number;
   accessible: boolean;
 }
@@ -223,17 +224,31 @@ export const getLibraries = () => getJSON<LibraryItem[]>("/libraries");
 export const browse = (path: string) =>
   getJSON<BrowseResult>(`/libraries/browse?path=${encodeURIComponent(path)}`);
 
-export async function addLibrary(path: string, name?: string): Promise<void> {
+export async function addLibrary(
+  path: string,
+  name?: string,
+  hasCategories = false,
+): Promise<void> {
   const res = await fetch(`${BASE}/libraries`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, name }),
+    body: JSON.stringify({ path, name, has_categories: hasCategories }),
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
     throw new Error(detail?.detail || `add failed (${res.status})`);
   }
+}
+
+export async function updateLibrary(id: number, hasCategories: boolean): Promise<void> {
+  const res = await fetch(`${BASE}/libraries/${id}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ has_categories: hasCategories }),
+  });
+  if (!res.ok) throw new Error(`update failed (${res.status})`);
 }
 
 export async function deleteLibrary(id: number): Promise<void> {
