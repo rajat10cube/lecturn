@@ -6,8 +6,8 @@ import mimetypes
 import os
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,7 +16,6 @@ from ..auth import require_user
 from ..db import get_db
 from ..models import Course, Lecture, User
 from ..paths import library_root, safe_media_path
-from ..streaming import range_response
 from ..transcode import remux_response
 
 router = APIRouter(prefix="/lectures", tags=["lectures"])
@@ -59,16 +58,16 @@ def get_lecture(
 
 
 @router.get("/{lecture_id}/stream")
-def stream(
-    lecture_id: int, request: Request, user: User = Depends(require_user),
-    db: Session = Depends(get_db),
-):
+def stream(lecture_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)):
     lec, _course, root = _resolve(db, lecture_id, user)
     path = safe_media_path(root, lec.path)
     if path is None:
         raise HTTPException(404, "File not found")
     ctype = lec.mime or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-    return range_response(path, request, ctype)
+    # FileResponse streams the file efficiently and handles HTTP Range (seeking)
+    # natively, plus ETag/Last-Modified caching — far better than a hand-rolled
+    # generator for large media.
+    return FileResponse(path, media_type=ctype)
 
 
 @router.get("/{lecture_id}/remux")
