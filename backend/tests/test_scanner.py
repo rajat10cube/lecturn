@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.scanner.walk import detect_group_depth, iter_course_roots, walk_course
+from app.scanner.walk import detect_group_depth, iter_course_roots, normalize_root, walk_course
 
 
 def _write(p: Path, data: bytes = b"x" * 2048) -> None:
@@ -75,6 +75,36 @@ def test_detect_group_depth_grouped(tmp_path: Path):
     # and grouping yields the provider as category
     roots = dict((cp.name, cat) for cp, cat in iter_course_roots(tmp_path, 1))
     assert roots["Course X"] == "Udemy"
+
+
+def test_normalize_root_never_returns_none_on_unreadable(tmp_path: Path):
+    # iterdir on a non-directory raises OSError; normalize_root must still return a
+    # tuple (regression: it used to fall through to None -> unpack TypeError in walk)
+    f = tmp_path / "not-a-dir.mp4"
+    f.write_bytes(b"x")
+    root, bundles = normalize_root(f)
+    assert root == f and bundles == []
+
+
+def test_walk_course_on_unreadable_returns_none(tmp_path: Path):
+    f = tmp_path / "broken"
+    f.write_bytes(b"x")  # a file where a course dir is expected
+    assert walk_course(f, tmp_path, None, section_max_depth=2, min_video_bytes=0) is None
+
+
+def test_iter_course_roots_skips_unreadable_group(tmp_path: Path, monkeypatch):
+    _write(tmp_path / "Good" / "Course" / "01 - S" / "001 a.mp4")
+    (tmp_path / "Bad").mkdir()
+    real = Path.iterdir
+
+    def flaky(self):
+        if self.name == "Bad":
+            raise PermissionError("denied")
+        return real(self)
+
+    monkeypatch.setattr(Path, "iterdir", flaky)
+    roots = list(iter_course_roots(tmp_path, group_depth=1))
+    assert any(d.name == "Course" for d, _ in roots)  # good group still scanned
 
 
 def test_walk_collapses_wrapper_and_excludes_bundle(tmp_path: Path):

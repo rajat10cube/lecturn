@@ -130,16 +130,23 @@ def detect_group_depth(lib_root: Path) -> int:
     return 1 if votes.count("group") > votes.count("course") else 0
 
 
+def _safe_iterdir(d: Path) -> list[Path]:
+    try:
+        return sorted(d.iterdir())
+    except OSError:
+        return []
+
+
 def iter_course_roots(lib_root: Path, group_depth: int) -> Iterator[tuple[Path, str | None]]:
     """Yield ``(course_dir, category)`` for a library root."""
     if group_depth <= 0:
-        for d in sorted(lib_root.iterdir()):
+        for d in _safe_iterdir(lib_root):
             if d.is_dir() and not _ignored_dir(d.name):
                 yield d, None
     else:
-        for group in sorted(lib_root.iterdir()):
+        for group in _safe_iterdir(lib_root):
             if group.is_dir() and not _ignored_dir(group.name):
-                for d in sorted(group.iterdir()):
+                for d in _safe_iterdir(group):
                     if d.is_dir() and not _ignored_dir(d.name):
                         yield d, group.name
 
@@ -228,7 +235,7 @@ def normalize_root(course_path: Path) -> tuple[Path, list[Path]]:
         try:
             entries = [e for e in root.iterdir() if not _ignored_dir(e.name)]
         except OSError:
-            break
+            return root, bundles  # unreadable dir -> stop descending, never return None
         files = [e for e in entries if e.is_file()]
         dirs = [e for e in entries if e.is_dir()]
         nonbundle: list[Path] = []

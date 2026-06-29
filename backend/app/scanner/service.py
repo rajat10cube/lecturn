@@ -65,16 +65,20 @@ def _scan_library(db, settings, lib: Library) -> None:
     seen: set[str] = set()
     found = 0
     for course_path, provider, category in roots:
-        sc = walk_course(
-            course_path, root, category, settings.section_max_depth,
-            settings.min_video_bytes, provider=provider,
-        )
-        if sc is None:
+        try:
+            sc = walk_course(
+                course_path, root, category, settings.section_max_depth,
+                settings.min_video_bytes, provider=provider,
+            )
+            if sc is None:
+                continue
+            # a named library *is* a provider (e.g. one library per Udemy/ArtStation);
+            # fall back to a folder-derived provider only when the library is unnamed
+            sc.provider = lib.name or sc.provider
+            with db.begin_nested():  # savepoint: one odd course can't sink the rest
+                sync_course(db, lib.id, sc)
+        except Exception:  # noqa: BLE001 - skip a single bad course, keep scanning
             continue
-        # a named library *is* a provider (e.g. one library per Udemy/ArtStation);
-        # fall back to a folder-derived provider only when the library is unnamed
-        sc.provider = lib.name or sc.provider
-        sync_course(db, lib.id, sc)
         seen.add(sc.rel_path)
         found += 1
         _status["courses"] += 1
