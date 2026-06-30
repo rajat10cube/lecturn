@@ -378,7 +378,7 @@ function LibrariesTab() {
                 {scan.phase === "indexing" ? "Indexing…" : `Scanning ${scan.current ?? "…"}`}
               </span>
               <span className="shrink-0 text-muted-foreground">
-                {scan.librariesDone}/{scan.librariesTotal} · {scan.courses} courses · {scan.lectures} lectures
+                {scan.librariesDone}/{scan.librariesTotal} libraries · {scan.courses} courses · {scan.lectures} lectures so far
               </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
