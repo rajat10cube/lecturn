@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { completeCourse, getCourses, getSearch, resetCourseProgress, type CourseCard } from "@/api";
 
 function pct(c: CourseCard) {
@@ -225,7 +226,7 @@ export default function Library() {
         }
       />
 
-      <main className="container py-6">
+      <main className="mx-auto w-full max-w-[1700px] px-4 py-6 md:px-6">
         {isLoading && <p className="text-muted-foreground">Loading library…</p>}
         {isError && <p className="text-destructive">Couldn’t reach the backend.</p>}
 
@@ -263,77 +264,103 @@ export default function Library() {
             </section>
           </div>
         ) : (
-          <div className="space-y-8">
-            {continueRow.length > 0 && (
-              <section>
-                <h2 className="mb-3 text-lg font-semibold">Continue learning</h2>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-                  {continueRow.map((c) => <CourseCardView key={c.id} c={c} />)}
-                </div>
-              </section>
-            )}
-
-            {data && (
-              <div className="flex flex-wrap items-center gap-2">
-                {["All", ...data.categories].map((c) => (
-                  <Button
-                    key={c}
-                    size="sm"
-                    variant={c === cat ? "default" : "outline"}
-                    onClick={() => setCat(c)}
-                  >
-                    {c}
-                  </Button>
-                ))}
-                <div className="ml-auto flex items-center gap-2">
-                  {(data.providers ?? []).length >= 2 && (
-                    <select
-                      className={selectCls}
-                      value={provider}
-                      onChange={(e) => setProvider(e.target.value)}
-                    >
-                      <option value="All">All providers</option>
-                      {(data.providers ?? []).map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
+          <div className="md:grid md:grid-cols-[14rem_minmax(0,1fr)] md:gap-8">
+            {/* Filters sidebar */}
+            {data && data.courses.length > 0 && (
+              <aside className="mb-6 md:mb-0">
+                <div className="space-y-5 md:sticky md:top-[4.5rem]">
+                  <div>
+                    <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Topic
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 md:max-h-[58vh] md:flex-col md:flex-nowrap md:gap-0.5 md:overflow-y-auto md:pr-1">
+                      {["All", ...data.categories].map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setCat(c)}
+                          className={cn(
+                            "rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
+                            c === cat
+                              ? "bg-primary font-medium text-primary-foreground"
+                              : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                          )}
+                        >
+                          {c}
+                        </button>
                       ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(data.providers ?? []).length >= 2 && (
+                      <select
+                        className={cn(selectCls, "w-full")}
+                        value={provider}
+                        onChange={(e) => setProvider(e.target.value)}
+                      >
+                        <option value="All">All providers</option>
+                        {(data.providers ?? []).map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <select
+                      className={cn(selectCls, "w-full")}
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                    >
+                      <option value="all">All courses</option>
+                      <option value="inprogress">In progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="notstarted">Not started</option>
                     </select>
-                  )}
-                  <select className={selectCls} value={status} onChange={(e) => setStatus(e.target.value)}>
-                    <option value="all">All courses</option>
-                    <option value="inprogress">In progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="notstarted">Not started</option>
-                  </select>
-                  <select className={selectCls} value={sort} onChange={(e) => setSort(e.target.value)}>
-                    <option value="title">Sort: A–Z</option>
-                    <option value="watched">Sort: Recently watched</option>
-                    <option value="added">Sort: Recently added</option>
-                    <option value="progress">Sort: Progress</option>
-                  </select>
+                    <select
+                      className={cn(selectCls, "w-full")}
+                      value={sort}
+                      onChange={(e) => setSort(e.target.value)}
+                    >
+                      <option value="title">Sort: A–Z</option>
+                      <option value="watched">Sort: Recently watched</option>
+                      <option value="added">Sort: Recently added</option>
+                      <option value="progress">Sort: Progress</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
+              </aside>
             )}
 
-            {data && data.courses.length === 0 ? (
-              <div className="grid place-items-center rounded-lg border border-dashed py-16 text-center">
-                <LibraryIcon className="mb-3 size-8 text-muted-foreground" />
-                <p className="font-medium">No courses yet</p>
-                <p className="mb-4 text-sm text-muted-foreground">
-                  Add a library that points at a folder of your downloaded courses.
-                </p>
-                <Button asChild>
-                  <Link to="/settings">Add a library</Link>
-                </Button>
-              </div>
-            ) : view.length === 0 ? (
-              <p className="py-10 text-center text-muted-foreground">No courses match these filters.</p>
-            ) : (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-                {view.map((c) => <CourseCardView key={c.id} c={c} />)}
-              </div>
-            )}
+            {/* Content */}
+            <div className="min-w-0 space-y-8">
+              {continueRow.length > 0 && (
+                <section>
+                  <h2 className="mb-3 text-lg font-semibold">Continue learning</h2>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+                    {continueRow.map((c) => <CourseCardView key={c.id} c={c} />)}
+                  </div>
+                </section>
+              )}
+
+              {data && data.courses.length === 0 ? (
+                <div className="grid place-items-center rounded-lg border border-dashed py-16 text-center">
+                  <LibraryIcon className="mb-3 size-8 text-muted-foreground" />
+                  <p className="font-medium">No courses yet</p>
+                  <p className="mb-4 text-sm text-muted-foreground">
+                    Add a library that points at a folder of your downloaded courses.
+                  </p>
+                  <Button asChild>
+                    <Link to="/settings">Add a library</Link>
+                  </Button>
+                </div>
+              ) : view.length === 0 ? (
+                <p className="py-10 text-center text-muted-foreground">No courses match these filters.</p>
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+                  {view.map((c) => <CourseCardView key={c.id} c={c} />)}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>

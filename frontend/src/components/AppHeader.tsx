@@ -12,7 +12,7 @@ export default function AppHeader({ center }: { center?: ReactNode }) {
 
   return (
     <header className="sticky top-0 z-20 border-b bg-background/80 backdrop-blur">
-      <div className="container flex h-14 items-center gap-3">
+      <div className="mx-auto flex h-14 w-full max-w-[1700px] items-center gap-3 px-4 md:px-6">
         <Link to="/" className="text-lg font-bold tracking-tight">
           Lecturn
         </Link>
