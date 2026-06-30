@@ -75,9 +75,12 @@ def _scan_library(db, settings, lib: Library) -> None:
             # a named library *is* a provider (e.g. one library per Udemy/ArtStation);
             # fall back to a folder-derived provider only when the library is unnamed
             sc.provider = lib.name or sc.provider
-            with db.begin_nested():  # savepoint: one odd course can't sink the rest
-                sync_course(db, lib.id, sc)
-        except Exception:  # noqa: BLE001 - skip a single bad course, keep scanning
+            sync_course(db, lib.id, sc)
+            db.commit()  # each course is its own transaction: a bad one rolls back
+            #              alone and can't corrupt the session for the rest
+        except Exception as e:  # noqa: BLE001 - isolate one bad course, keep scanning
+            db.rollback()
+            _status["errors"].append({"library": lib.path, "error": f"{course_path.name}: {e!r}"})
             continue
         seen.add(sc.rel_path)
         found += 1

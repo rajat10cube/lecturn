@@ -82,6 +82,39 @@ def test_library_name_becomes_provider(tmp_path):
         assert c.category == "3D Art"
 
 
+def test_one_failing_course_is_isolated(tmp_path, monkeypatch):
+    # a course that errors during sync must not take down the whole library
+    base = tmp_path / "lib"
+    for name in ("Good Course", "Bad Course"):
+        p = base / name / "01 - S" / "001 a.mp4"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"x" * 4096)
+    with SessionLocal() as db:
+        db.add(Library(path=str(base), name="L", group_depth=0))
+        db.commit()
+
+    import app.scanner.service as svc
+
+    real_sync = svc.sync_course
+
+    def flaky(db, library_id, sc):
+        if sc.title == "Bad Course":
+            raise RuntimeError("boom during sync")
+        return real_sync(db, library_id, sc)
+
+    monkeypatch.setattr(svc, "sync_course", flaky)
+    run_scan()
+
+    with SessionLocal() as db:
+        titles = db.scalars(
+            select(Course.title)
+            .join(Library, Library.id == Course.library_id)
+            .where(Library.path == str(base), Course.missing.is_(False))
+        ).all()
+    assert "Good Course" in titles  # imported despite the bad sibling
+    assert "Bad Course" not in titles
+
+
 def test_empty_library_reports_no_courses_found(tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()
